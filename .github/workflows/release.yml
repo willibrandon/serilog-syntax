@@ -33,9 +33,9 @@ jobs:
         $content = Get-Content $manifest -Raw
         $version = '${{ steps.version.outputs.VERSION }}'
         
-        # VSIX requires 4-part version (Major.Minor.Build.Revision)
-        # If version is like 0.1.0, append .0 to make it 0.1.0.0
-        if ($version -match '^\d+\.\d+\.\d+$') {
+        # VSIX manifests don't require 4-part version - use 3-part for x.y.0 versions
+        # Only add .0 for two-part versions like 0.1
+        if ($version -match '^\d+\.\d+$') {
             $version = "$version.0"
         }
         
