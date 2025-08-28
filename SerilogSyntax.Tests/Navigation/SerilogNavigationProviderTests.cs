@@ -1,4 +1,5 @@
 using SerilogSyntax.Navigation;
+using SerilogSyntax.Parsing;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -11,7 +12,7 @@ namespace SerilogSyntax.Tests.Navigation
         public void NavigateToArgumentAction_DisplayText_FormatsCorrectly()
         {
             // Arrange & Act
-            var action = new NavigateToArgumentAction(null, 100, 4, "UserName");
+            var action = new NavigateToArgumentAction(null, 100, 4, "UserName", PropertyType.Standard);
 
             // Assert
             Assert.Equal("Navigate to 'UserName' argument", action.DisplayText);
@@ -21,7 +22,7 @@ namespace SerilogSyntax.Tests.Navigation
         public void NavigateToArgumentAction_HasPreview_ReturnsFalse()
         {
             // Arrange & Act
-            var action = new NavigateToArgumentAction(null, 100, 4, "Test");
+            var action = new NavigateToArgumentAction(null, 100, 4, "Test", PropertyType.Standard);
 
             // Assert
             Assert.False(action.HasPreview);
@@ -31,7 +32,7 @@ namespace SerilogSyntax.Tests.Navigation
         public void NavigateToArgumentAction_HasActionSets_ReturnsFalse()
         {
             // Arrange & Act
-            var action = new NavigateToArgumentAction(null, 100, 4, "Test");
+            var action = new NavigateToArgumentAction(null, 100, 4, "Test", PropertyType.Standard);
 
             // Assert
             Assert.False(action.HasActionSets);
@@ -41,7 +42,7 @@ namespace SerilogSyntax.Tests.Navigation
         public async Task NavigateToArgumentAction_GetActionSetsAsync_ReturnsEmptyAsync()
         {
             // Arrange
-            var action = new NavigateToArgumentAction(null, 100, 4, "Test");
+            var action = new NavigateToArgumentAction(null, 100, 4, "Test", PropertyType.Standard);
 
             // Act
             var result = await action.GetActionSetsAsync(CancellationToken.None);
@@ -55,7 +56,7 @@ namespace SerilogSyntax.Tests.Navigation
         public async Task NavigateToArgumentAction_GetPreviewAsync_ReturnsNullAsync()
         {
             // Arrange
-            var action = new NavigateToArgumentAction(null, 100, 4, "Test");
+            var action = new NavigateToArgumentAction(null, 100, 4, "Test", PropertyType.Standard);
 
             // Act
             var result = await action.GetPreviewAsync(CancellationToken.None);
@@ -68,7 +69,7 @@ namespace SerilogSyntax.Tests.Navigation
         public void NavigateToArgumentAction_TryGetTelemetryId_ReturnsFalse()
         {
             // Arrange
-            var action = new NavigateToArgumentAction(null, 100, 4, "Test");
+            var action = new NavigateToArgumentAction(null, 100, 4, "Test", PropertyType.Standard);
 
             // Act
             var result = action.TryGetTelemetryId(out var telemetryId);
@@ -76,6 +77,26 @@ namespace SerilogSyntax.Tests.Navigation
             // Assert
             Assert.False(result);
             Assert.Equal(System.Guid.Empty, telemetryId);
+        }
+
+        [Fact]
+        public void NavigateToArgumentAction_DisplayText_FormatsPositionalCorrectly()
+        {
+            // Arrange & Act
+            var action = new NavigateToArgumentAction(null, 100, 4, "0", PropertyType.Positional);
+
+            // Assert
+            Assert.Equal("Navigate to argument at position 0", action.DisplayText);
+        }
+
+        [Fact]
+        public void NavigateToArgumentAction_DisplayText_FormatsNamedCorrectly()
+        {
+            // Arrange & Act
+            var action = new NavigateToArgumentAction(null, 100, 4, "UserName", PropertyType.Standard);
+
+            // Assert
+            Assert.Equal("Navigate to 'UserName' argument", action.DisplayText);
         }
     }
 }

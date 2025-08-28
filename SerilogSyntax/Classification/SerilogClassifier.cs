@@ -1,13 +1,16 @@
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using SerilogSyntax.Parsing;
+using SerilogSyntax.Utilities;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace SerilogSyntax.Classification
 {
-    internal class SerilogClassifier : IClassifier
+    internal class SerilogClassifier : IClassifier, IDisposable
     {
         private readonly IClassificationTypeRegistryService _classificationRegistry;
         private readonly ITextBuffer _buffer;
@@ -22,10 +25,12 @@ namespace SerilogSyntax.Classification
         private readonly IClassificationType _positionalIndexType;
         private readonly IClassificationType _alignmentType;
 
-        // Regex to find Serilog method calls and configuration - matches logging methods and outputTemplate parameters
-        private static readonly Regex SerilogCallRegex = new Regex(
-            @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write))\s*\()|(?:outputTemplate\s*:\s*)",
-            RegexOptions.Compiled);
+        // Performance optimizations
+        private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new ConcurrentDictionary<string, List<TemplateProperty>>();
+        private readonly object _cacheLock = new object();
+        private ITextSnapshot _lastSnapshot;
+        private ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>> _classificationCache = new ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>>();
+
 
         public SerilogClassifier(ITextBuffer buffer, IClassificationTypeRegistryService classificationRegistry)
         {
@@ -41,101 +46,169 @@ namespace SerilogSyntax.Classification
             _propertyBraceType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.PropertyBrace);
             _positionalIndexType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.PositionalIndex);
             _alignmentType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.Alignment);
+
+            // Set up cache invalidation on buffer changes
+            _buffer.Changed += OnBufferChanged;
+        }
+
+        private void OnBufferChanged(object sender, TextContentChangedEventArgs e)
+        {
+            // Clear caches when buffer changes - this prevents stale cached results
+            lock (_cacheLock)
+            {
+                if (_lastSnapshot != e.After)
+                {
+                    _templateCache.Clear();
+                    _classificationCache.Clear();
+                    _lastSnapshot = e.After;
+                }
+            }
         }
 
         public event EventHandler<ClassificationChangedEventArgs> ClassificationChanged { add { } remove { } }
 
         public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span)
         {
+            // Check cache first - avoid expensive operations if possible
+            if (_classificationCache.TryGetValue(span, out List<ClassificationSpan> cachedResult))
+            {
+                return cachedResult;
+            }
+
             var classifications = new List<ClassificationSpan>();
             
-            // Get the text from the span
-            string text = span.GetText();
-            
-            // Find Serilog method calls
-            var matches = SerilogCallRegex.Matches(text);
-            
-            foreach (Match match in matches)
+            try
             {
-                // Find the string literal after the method call
-                int searchStart = match.Index + match.Length;
-                var stringLiteral = FindStringLiteral(text, searchStart, span.Start);
+                // Get the text from the span
+                string text = span.GetText();
                 
-                if (stringLiteral.HasValue)
+                // Early exit if no Serilog calls detected - avoids expensive regex on irrelevant text
+                if (string.IsNullOrWhiteSpace(text) || !SerilogCallDetector.IsSerilogCall(text))
                 {
-                    var (literalStart, literalEnd, templateText) = stringLiteral.Value;
+                    _classificationCache.TryAdd(span, classifications);
+                    return classifications;
+                }
+                
+                // Find Serilog method calls
+                var matches = SerilogCallDetector.FindAllSerilogCalls(text);
+                
+                foreach (Match match in matches)
+                {
+                    // Find the string literal after the method call
+                    int searchStart = match.Index + match.Length;
+                    var stringLiteral = FindStringLiteral(text, searchStart, span.Start);
                     
-                    // Parse the template
-                    var properties = _parser.Parse(templateText);
-                    
-                    // Create classification spans for each property element
-                    foreach (var property in properties)
+                    if (stringLiteral.HasValue)
                     {
-                        // Adjust indices to account for the string literal position
-                        int offsetInSnapshot = literalStart + 1; // +1 to skip opening quote
+                        var (literalStart, literalEnd, templateText) = stringLiteral.Value;
                         
-                        // Classify braces
-                        if (_propertyBraceType != null)
+                        // Use cached template parsing if available
+                        var properties = GetCachedTemplateProperties(templateText);
+                        
+                        // Create classification spans for each property element
+                        foreach (var property in properties)
                         {
-                            // Opening brace
-                            var openBraceSpan = new SnapshotSpan(span.Snapshot, 
-                                offsetInSnapshot + property.BraceStartIndex, 1);
-                            classifications.Add(new ClassificationSpan(openBraceSpan, _propertyBraceType));
+                            // Adjust indices to account for the string literal position
+                            int offsetInSnapshot = literalStart + 1; // +1 to skip opening quote
                             
-                            // Closing brace
-                            var closeBraceSpan = new SnapshotSpan(span.Snapshot,
-                                offsetInSnapshot + property.BraceEndIndex, 1);
-                            classifications.Add(new ClassificationSpan(closeBraceSpan, _propertyBraceType));
-                        }
-                        
-                        // Classify operators
-                        if (property.Type == PropertyType.Destructured && _destructureOperatorType != null)
-                        {
-                            var operatorSpan = new SnapshotSpan(span.Snapshot,
-                                offsetInSnapshot + property.OperatorIndex, 1);
-                            classifications.Add(new ClassificationSpan(operatorSpan, _destructureOperatorType));
-                        }
-                        else if (property.Type == PropertyType.Stringified && _stringifyOperatorType != null)
-                        {
-                            var operatorSpan = new SnapshotSpan(span.Snapshot,
-                                offsetInSnapshot + property.OperatorIndex, 1);
-                            classifications.Add(new ClassificationSpan(operatorSpan, _stringifyOperatorType));
-                        }
-                        
-                        // Classify property name
-                        var classificationType = property.Type == PropertyType.Positional 
-                            ? _positionalIndexType 
-                            : _propertyNameType;
-                            
-                        if (classificationType != null)
-                        {
-                            var nameSpan = new SnapshotSpan(span.Snapshot,
-                                offsetInSnapshot + property.StartIndex, property.Length);
-                            classifications.Add(new ClassificationSpan(nameSpan, classificationType));
-                        }
-                        
-                        // Classify alignment
-                        if (!string.IsNullOrEmpty(property.Alignment) && _alignmentType != null)
-                        {
-                            var alignmentSpan = new SnapshotSpan(span.Snapshot,
-                                offsetInSnapshot + property.AlignmentStartIndex,
-                                property.Alignment.Length);
-                            classifications.Add(new ClassificationSpan(alignmentSpan, _alignmentType));
-                        }
-                        
-                        // Classify format specifier
-                        if (!string.IsNullOrEmpty(property.FormatSpecifier) && _formatSpecifierType != null)
-                        {
-                            var formatSpan = new SnapshotSpan(span.Snapshot,
-                                offsetInSnapshot + property.FormatStartIndex,
-                                property.FormatSpecifier.Length);
-                            classifications.Add(new ClassificationSpan(formatSpan, _formatSpecifierType));
+                            AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
                         }
                     }
                 }
             }
+            catch (Exception)
+            {
+                // Swallow exceptions to avoid crashing the editor - return empty classifications on error
+            }
             
+            // Cache the result for future requests
+            _classificationCache.TryAdd(span, classifications);
             return classifications;
+        }
+
+        private List<TemplateProperty> GetCachedTemplateProperties(string template)
+        {
+            // Use template cache to avoid re-parsing identical templates
+            return _templateCache.GetOrAdd(template, t =>
+            {
+                try
+                {
+                    return _parser.Parse(t).ToList();
+                }
+                catch
+                {
+                    // Return empty list on parse error
+                    return new List<TemplateProperty>();
+                }
+            });
+        }
+
+        private void AddPropertyClassifications(List<ClassificationSpan> classifications, ITextSnapshot snapshot, int offsetInSnapshot, TemplateProperty property)
+        {
+            try
+            {
+                // Classify braces
+                if (_propertyBraceType != null)
+                {
+                    // Opening brace
+                    var openBraceSpan = new SnapshotSpan(snapshot, 
+                        offsetInSnapshot + property.BraceStartIndex, 1);
+                    classifications.Add(new ClassificationSpan(openBraceSpan, _propertyBraceType));
+                    
+                    // Closing brace
+                    var closeBraceSpan = new SnapshotSpan(snapshot,
+                        offsetInSnapshot + property.BraceEndIndex, 1);
+                    classifications.Add(new ClassificationSpan(closeBraceSpan, _propertyBraceType));
+                }
+                
+                // Classify operators
+                if (property.Type == PropertyType.Destructured && _destructureOperatorType != null)
+                {
+                    var operatorSpan = new SnapshotSpan(snapshot,
+                        offsetInSnapshot + property.OperatorIndex, 1);
+                    classifications.Add(new ClassificationSpan(operatorSpan, _destructureOperatorType));
+                }
+                else if (property.Type == PropertyType.Stringified && _stringifyOperatorType != null)
+                {
+                    var operatorSpan = new SnapshotSpan(snapshot,
+                        offsetInSnapshot + property.OperatorIndex, 1);
+                    classifications.Add(new ClassificationSpan(operatorSpan, _stringifyOperatorType));
+                }
+                
+                // Classify property name
+                var classificationType = property.Type == PropertyType.Positional 
+                    ? _positionalIndexType 
+                    : _propertyNameType;
+                    
+                if (classificationType != null)
+                {
+                    var nameSpan = new SnapshotSpan(snapshot,
+                        offsetInSnapshot + property.StartIndex, property.Length);
+                    classifications.Add(new ClassificationSpan(nameSpan, classificationType));
+                }
+                
+                // Classify alignment
+                if (!string.IsNullOrEmpty(property.Alignment) && _alignmentType != null)
+                {
+                    var alignmentSpan = new SnapshotSpan(snapshot,
+                        offsetInSnapshot + property.AlignmentStartIndex,
+                        property.Alignment.Length);
+                    classifications.Add(new ClassificationSpan(alignmentSpan, _alignmentType));
+                }
+                
+                // Classify format specifier
+                if (!string.IsNullOrEmpty(property.FormatSpecifier) && _formatSpecifierType != null)
+                {
+                    var formatSpan = new SnapshotSpan(snapshot,
+                        offsetInSnapshot + property.FormatStartIndex,
+                        property.FormatSpecifier.Length);
+                    classifications.Add(new ClassificationSpan(formatSpan, _formatSpecifierType));
+                }
+            }
+            catch
+            {
+                // Ignore individual property classification errors
+            }
         }
 
         private (int start, int end, string text)? FindStringLiteral(string text, int startIndex, int spanStart)
@@ -187,6 +260,16 @@ namespace SerilogSyntax.Classification
             }
             
             return null;
+        }
+
+        public void Dispose()
+        {
+            // Clean up event handlers to prevent memory leaks
+            _buffer.Changed -= OnBufferChanged;
+            
+            // Clear caches
+            _templateCache.Clear();
+            _classificationCache.Clear();
         }
     }
 }

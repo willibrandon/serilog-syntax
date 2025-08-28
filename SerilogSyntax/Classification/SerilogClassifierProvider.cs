@@ -1,7 +1,10 @@
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.Runtime.CompilerServices;
 
 namespace SerilogSyntax.Classification
 {
@@ -13,15 +16,16 @@ namespace SerilogSyntax.Classification
         [Import]
         internal IClassificationTypeRegistryService ClassificationRegistry { get; set; }
 
-        private static SerilogClassifier _classifier;
+        private readonly ConditionalWeakTable<ITextBuffer, SerilogClassifier> _classifiers = new ConditionalWeakTable<ITextBuffer, SerilogClassifier>();
 
         public IClassifier GetClassifier(ITextBuffer buffer)
         {
-            if (_classifier == null)
+            if (!_classifiers.TryGetValue(buffer, out SerilogClassifier classifier))
             {
-                _classifier = new SerilogClassifier(buffer, ClassificationRegistry);
+                classifier = new SerilogClassifier(buffer, ClassificationRegistry);
+                _classifiers.Add(buffer, classifier);
             }
-            return _classifier;
+            return classifier;
         }
     }
 }

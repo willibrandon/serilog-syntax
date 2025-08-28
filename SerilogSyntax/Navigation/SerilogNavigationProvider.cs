@@ -5,6 +5,7 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Utilities;
 using SerilogSyntax.Parsing;
+using SerilogSyntax.Utilities;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
@@ -38,9 +39,6 @@ namespace SerilogSyntax.Navigation
         private readonly ITextView _textView;
         private readonly ITextBuffer _textBuffer;
         private readonly TemplateParser _parser = new TemplateParser();
-        private static readonly Regex SerilogCallRegex = new Regex(
-            @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write))\s*\()|(?:outputTemplate\s*:\s*)",
-            RegexOptions.Compiled);
 
         public SerilogSuggestedActionsSource(SerilogSuggestedActionsSourceProvider provider, ITextView textView, ITextBuffer textBuffer)
         {
@@ -59,8 +57,8 @@ namespace SerilogSyntax.Navigation
                 var lineStart = line.Start.Position;
 
                 // Check if we're in a Serilog call
-                var serilogMatch = SerilogCallRegex.Match(lineText);
-                if (!serilogMatch.Success)
+                var serilogMatch = SerilogCallDetector.FindSerilogCall(lineText);
+                if (serilogMatch == null)
                     return false;
 
                 // Find the template string
@@ -85,7 +83,7 @@ namespace SerilogSyntax.Navigation
                     cursorPosInTemplate >= p.BraceStartIndex && 
                     cursorPosInTemplate <= p.BraceEndIndex);
 
-                return property != null && property.Type != PropertyType.Positional;
+                return property != null;
             }, cancellationToken);
         }
 
@@ -97,8 +95,8 @@ namespace SerilogSyntax.Navigation
             var lineStart = line.Start.Position;
 
             // Check if we're in a Serilog call
-            var serilogMatch = SerilogCallRegex.Match(lineText);
-            if (!serilogMatch.Success)
+            var serilogMatch = SerilogCallDetector.FindSerilogCall(lineText);
+            if (serilogMatch == null)
                 yield break;
 
             // Find the template string
@@ -123,11 +121,11 @@ namespace SerilogSyntax.Navigation
                 cursorPosInTemplate >= p.BraceStartIndex && 
                 cursorPosInTemplate <= p.BraceEndIndex);
 
-            if (property == null || property.Type == PropertyType.Positional)
+            if (property == null)
                 yield break;
 
             // Find the corresponding argument by position
-            var propertyIndex = properties.Where(p => p.Type != PropertyType.Positional).ToList().IndexOf(property);
+            var propertyIndex = GetArgumentIndex(properties, property);
             if (propertyIndex >= 0)
             {
                 var argumentLocation = FindArgumentByPosition(lineText, templateEnd, propertyIndex);
@@ -135,10 +133,27 @@ namespace SerilogSyntax.Navigation
                 {
                     var actions = new ISuggestedAction[] 
                     {
-                        new NavigateToArgumentAction(_textView, lineStart + argumentLocation.Value.Item1, argumentLocation.Value.Item2, property.Name)
+                        new NavigateToArgumentAction(_textView, lineStart + argumentLocation.Value.Item1, argumentLocation.Value.Item2, property.Name, property.Type)
                     };
                     yield return new SuggestedActionSet(null, actions, null, SuggestedActionSetPriority.Medium);
                 }
+            }
+        }
+
+        private int GetArgumentIndex(List<TemplateProperty> properties, TemplateProperty targetProperty)
+        {
+            if (targetProperty.Type == PropertyType.Positional)
+            {
+                // For positional properties, parse the index from the property name
+                if (int.TryParse(targetProperty.Name, out int index))
+                    return index;
+                return -1;
+            }
+            else
+            {
+                // For named properties, find their position among all named properties
+                var namedProperties = properties.Where(p => p.Type != PropertyType.Positional).ToList();
+                return namedProperties.IndexOf(targetProperty);
             }
         }
 
@@ -227,12 +242,11 @@ namespace SerilogSyntax.Navigation
             var braceDepth = 0;
             var inString = false;
             var stringChar = '\0';
-            var argumentStart = current;
 
             // Skip leading whitespace
             while (current < line.Length && char.IsWhiteSpace(line[current]))
                 current++;
-            argumentStart = current;
+            var argumentStart = current;
 
             for (; current < line.Length; current++)
             {
@@ -346,16 +360,20 @@ namespace SerilogSyntax.Navigation
         private readonly int _position;
         private readonly int _length;
         private readonly string _propertyName;
+        private readonly PropertyType _propertyType;
 
-        public NavigateToArgumentAction(ITextView textView, int position, int length, string propertyName)
+        public NavigateToArgumentAction(ITextView textView, int position, int length, string propertyName, PropertyType propertyType)
         {
             _textView = textView;
             _position = position;
             _length = length;
             _propertyName = propertyName;
+            _propertyType = propertyType;
         }
 
-        public string DisplayText => $"Navigate to '{_propertyName}' argument";
+        public string DisplayText => _propertyType == PropertyType.Positional 
+            ? $"Navigate to argument at position {_propertyName}" 
+            : $"Navigate to '{_propertyName}' argument";
 
         public string IconAutomationText => null;
 

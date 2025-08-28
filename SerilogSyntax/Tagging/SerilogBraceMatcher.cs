@@ -3,11 +3,11 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Tagging;
 using Microsoft.VisualStudio.Utilities;
 using SerilogSyntax.Classification;
+using SerilogSyntax.Utilities;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace SerilogSyntax.Tagging
 {
@@ -33,9 +33,6 @@ namespace SerilogSyntax.Tagging
         private readonly ITextView _view;
         private readonly ITextBuffer _buffer;
         private SnapshotPoint? _currentChar;
-        private static readonly Regex SerilogCallRegex = new Regex(
-            @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log)?(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\()|(?:outputTemplate\s*:\s*)",
-            RegexOptions.Compiled);
 
         public event EventHandler<SnapshotSpanEventArgs> TagsChanged;
 
@@ -123,7 +120,7 @@ namespace SerilogSyntax.Tagging
 
         private bool IsSerilogCall(string line)
         {
-            return SerilogCallRegex.IsMatch(line);
+            return SerilogCallDetector.IsSerilogCall(line);
         }
 
         private int FindMatchingCloseBrace(string text, int openBracePos)
