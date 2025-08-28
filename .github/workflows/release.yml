@@ -33,10 +33,16 @@ jobs:
         $content = Get-Content $manifest -Raw
         $version = '${{ steps.version.outputs.VERSION }}'
         
-        # VSIX manifests don't require 4-part version - use 3-part for x.y.0 versions
-        # Only add .0 for two-part versions like 0.1
-        if ($version -match '^\d+\.\d+$') {
-            $version = "$version.0"
+        # VSIX requires 4-part version (Major.Minor.Build.Revision)
+        # But 0.1.0.0 is invalid - use 0.1.0.1 for initial release
+        if ($version -eq '0.1.0') {
+            $version = '0.1.0.1'
+        } elseif ($version -match '^\d+\.\d+\.\d+$') {
+            # For other 3-part versions, add .1 as revision
+            $version = "$version.1"
+        } elseif ($version -match '^\d+\.\d+$') {
+            # For 2-part versions, add .0.1
+            $version = "$version.0.1"
         }
         
         $content = $content -replace '(?<=Version=")[^"]*', $version
