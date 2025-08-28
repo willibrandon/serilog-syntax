@@ -22,9 +22,9 @@ namespace SerilogSyntax.Classification
         private readonly IClassificationType _positionalIndexType;
         private readonly IClassificationType _alignmentType;
 
-        // Regex to find Serilog method calls
+        // Regex to find Serilog method calls and configuration - matches logging methods and outputTemplate parameters
         private static readonly Regex SerilogCallRegex = new Regex(
-            @"\b(?:Log|_?logger|_?log)\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\(",
+            @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write))\s*\()|(?:outputTemplate\s*:\s*)",
             RegexOptions.Compiled);
 
         public SerilogClassifier(ITextBuffer buffer, IClassificationTypeRegistryService classificationRegistry)
@@ -179,6 +179,13 @@ namespace SerilogSyntax.Classification
                 endIndex++;
             }
 
+            // Incomplete string literal - return what we have so far
+            if (endIndex > startIndex + 1)
+            {
+                string literalContent = text.Substring(startIndex + 1, endIndex - startIndex - 1);
+                return (spanStart + startIndex, spanStart + endIndex, literalContent);
+            }
+            
             return null;
         }
     }

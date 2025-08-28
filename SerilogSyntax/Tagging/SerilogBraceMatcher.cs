@@ -34,7 +34,7 @@ namespace SerilogSyntax.Tagging
         private readonly ITextBuffer _buffer;
         private SnapshotPoint? _currentChar;
         private static readonly Regex SerilogCallRegex = new Regex(
-            @"\b(?:Log|_?logger|_?log)\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\(",
+            @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log)?(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\()|(?:outputTemplate\s*:\s*)",
             RegexOptions.Compiled);
 
         public event EventHandler<SnapshotSpanEventArgs> TagsChanged;
@@ -63,12 +63,8 @@ namespace SerilogSyntax.Tagging
             _currentChar = caretPosition.Point.GetPoint(_buffer, caretPosition.Affinity);
             if (_currentChar.HasValue)
             {
-                var tempEvent = TagsChanged;
-                if (tempEvent != null)
-                {
-                    tempEvent(this, new SnapshotSpanEventArgs(
+                TagsChanged?.Invoke(this, new SnapshotSpanEventArgs(
                         new SnapshotSpan(_buffer.CurrentSnapshot, 0, _buffer.CurrentSnapshot.Length)));
-                }
             }
         }
 

@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerilogSyntax", "SerilogSyn
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerilogSyntax.Tests", "SerilogSyntax.Tests\SerilogSyntax.Tests.csproj", "{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example", "Example\Example.csproj", "{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
 		docs\design.md = docs\design.md
@@ -47,6 +49,18 @@ Global
 		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|arm64.Build.0 = Release|Any CPU
 		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|x86.ActiveCfg = Release|Any CPU
 		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|x86.Build.0 = Release|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Debug|arm64.ActiveCfg = Debug|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Debug|arm64.Build.0 = Debug|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Debug|x86.Build.0 = Debug|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|arm64.ActiveCfg = Release|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|arm64.Build.0 = Release|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|x86.ActiveCfg = Release|Any CPU
+		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

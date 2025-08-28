@@ -39,7 +39,7 @@ namespace SerilogSyntax.Navigation
         private readonly ITextBuffer _textBuffer;
         private readonly TemplateParser _parser = new TemplateParser();
         private static readonly Regex SerilogCallRegex = new Regex(
-            @"\b(?:Log|_?logger|_?log)\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\(",
+            @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write))\s*\()|(?:outputTemplate\s*:\s*)",
             RegexOptions.Compiled);
 
         public SerilogSuggestedActionsSource(SerilogSuggestedActionsSourceProvider provider, ITextView textView, ITextBuffer textBuffer)
@@ -126,15 +126,19 @@ namespace SerilogSyntax.Navigation
             if (property == null || property.Type == PropertyType.Positional)
                 yield break;
 
-            // Find the corresponding argument
-            var argumentLocation = FindArgumentForProperty(lineText, templateEnd, property.Name);
-            if (argumentLocation.HasValue)
+            // Find the corresponding argument by position
+            var propertyIndex = properties.Where(p => p.Type != PropertyType.Positional).ToList().IndexOf(property);
+            if (propertyIndex >= 0)
             {
-                var actions = new ISuggestedAction[] 
+                var argumentLocation = FindArgumentByPosition(lineText, templateEnd, propertyIndex);
+                if (argumentLocation.HasValue)
                 {
-                    new NavigateToArgumentAction(_textView, lineStart + argumentLocation.Value.Item1, argumentLocation.Value.Item2, property.Name)
-                };
-                yield return new SuggestedActionSet(null, actions, null, SuggestedActionSetPriority.Medium);
+                    var actions = new ISuggestedAction[] 
+                    {
+                        new NavigateToArgumentAction(_textView, lineStart + argumentLocation.Value.Item1, argumentLocation.Value.Item2, property.Name)
+                    };
+                    yield return new SuggestedActionSet(null, actions, null, SuggestedActionSetPriority.Medium);
+                }
             }
         }
 
@@ -195,23 +199,132 @@ namespace SerilogSyntax.Navigation
             return null;
         }
 
-        private (int, int)? FindArgumentForProperty(string line, int templateEnd, string propertyName)
+        private (int, int)? FindArgumentByPosition(string line, int templateEnd, int argumentIndex)
         {
-            // Look for comma-separated arguments after the template
+            // Find the start of arguments (after the template string)
             var argumentsStart = line.IndexOf(',', templateEnd);
             if (argumentsStart < 0)
                 return null;
 
-            // Simple heuristic: look for identifiers matching property name
-            var propertyPattern = new Regex($@"\b{Regex.Escape(propertyName)}\b");
-            var match = propertyPattern.Match(line, argumentsStart);
+            // Parse comma-separated arguments, accounting for nested parentheses and brackets
+            var arguments = ParseArguments(line, argumentsStart + 1);
             
-            if (match.Success)
+            if (argumentIndex < arguments.Count)
             {
-                return (match.Index, match.Length);
+                var (start, length) = arguments[argumentIndex];
+                return (start, length);
             }
 
             return null;
+        }
+
+        private List<(int start, int length)> ParseArguments(string line, int startIndex)
+        {
+            var arguments = new List<(int start, int length)>();
+            var current = startIndex;
+            var parenDepth = 0;
+            var bracketDepth = 0;
+            var braceDepth = 0;
+            var inString = false;
+            var stringChar = '\0';
+            var argumentStart = current;
+
+            // Skip leading whitespace
+            while (current < line.Length && char.IsWhiteSpace(line[current]))
+                current++;
+            argumentStart = current;
+
+            for (; current < line.Length; current++)
+            {
+                var c = line[current];
+
+                // Handle string literals
+                if (!inString && (c == '"' || c == '\''))
+                {
+                    inString = true;
+                    stringChar = c;
+                    continue;
+                }
+                else if (inString && c == stringChar)
+                {
+                    // Check for escaped quote
+                    if (current > 0 && line[current - 1] != '\\')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+                else if (inString)
+                {
+                    continue; // Skip everything inside strings
+                }
+
+                // Handle nested structures
+                switch (c)
+                {
+                    case '(':
+                        parenDepth++;
+                        break;
+                    case ')':
+                        parenDepth--;
+                        if (parenDepth < 0) // End of method call
+                        {
+                            // Add the current argument if we have content
+                            if (current > argumentStart)
+                            {
+                                var argText = line.Substring(argumentStart, current - argumentStart).Trim();
+                                if (!string.IsNullOrEmpty(argText))
+                                {
+                                    arguments.Add((argumentStart, argText.Length));
+                                }
+                            }
+                            return arguments;
+                        }
+                        break;
+                    case '[':
+                        bracketDepth++;
+                        break;
+                    case ']':
+                        bracketDepth--;
+                        break;
+                    case '{':
+                        braceDepth++;
+                        break;
+                    case '}':
+                        braceDepth--;
+                        break;
+                    case ',':
+                        // Only treat as argument separator if we're at the top level
+                        if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
+                        {
+                            var argText = line.Substring(argumentStart, current - argumentStart).Trim();
+                            if (!string.IsNullOrEmpty(argText))
+                            {
+                                arguments.Add((argumentStart, argText.Length));
+                            }
+                            
+                            // Move to next argument
+                            current++;
+                            while (current < line.Length && char.IsWhiteSpace(line[current]))
+                                current++;
+                            argumentStart = current;
+                            current--; // Compensate for loop increment
+                        }
+                        break;
+                }
+            }
+
+            // Add final argument if exists
+            if (argumentStart < current)
+            {
+                var argText = line.Substring(argumentStart, current - argumentStart).Trim();
+                if (!string.IsNullOrEmpty(argText))
+                {
+                    arguments.Add((argumentStart, argText.Length));
+                }
+            }
+
+            return arguments;
         }
 
         public void Dispose()
@@ -252,7 +365,7 @@ namespace SerilogSyntax.Navigation
 
         public string InputGestureText => null;
 
-        public ImageMoniker IconMoniker => default(ImageMoniker);
+        public ImageMoniker IconMoniker => default;
 
         public async Task<IEnumerable<SuggestedActionSet>> GetActionSetsAsync(CancellationToken cancellationToken)
         {
