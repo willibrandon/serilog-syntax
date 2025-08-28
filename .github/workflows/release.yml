@@ -92,12 +92,10 @@ jobs:
             
             $notes = $changelog.Substring($startIndex, $endIndex - $startIndex).Trim()
             
-            # Escape for GitHub Actions (replace % and newlines)
-            $notes = $notes -replace '%', '%25'
-            $notes = $notes -replace "`r`n", "%0A"
-            $notes = $notes -replace "`n", "%0A"
-            $notes = $notes -replace "`r", "%0D"
-            echo "NOTES=$notes" >> $env:GITHUB_OUTPUT
+            # GitHub Actions multiline output
+            echo "NOTES<<EOF" >> $env:GITHUB_OUTPUT
+            echo $notes >> $env:GITHUB_OUTPUT
+            echo "EOF" >> $env:GITHUB_OUTPUT
         } else {
             echo "NOTES=See CHANGELOG.md for details" >> $env:GITHUB_OUTPUT
         }
