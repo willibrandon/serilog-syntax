@@ -61,11 +61,44 @@ public class ExampleService(ILogger<ExampleService> logger)
 {
     public async Task RunExamplesAsync()
     {
+        await ShowcaseExample();
         await BasicLoggingExamples();
         await DestructuringExamples();
         await FormattingExamples();
         await ErrorHandlingExamples();
         await PerformanceLoggingExamples();
+    }
+
+    private async Task ShowcaseExample()
+    {
+        logger.LogInformation("=== Serilog Syntax Showcase ===");
+
+        // This section demonstrates all syntax highlighting features in one place
+        var userId = 42;
+        var userName = "Alice";
+        var orderCount = 5;
+        var totalAmount = 1234.56m;
+        var timestamp = DateTime.Now;
+        
+        // Standard properties with multiple types
+        logger.LogInformation("User {UserId} ({UserName}) placed {OrderCount} orders totaling {TotalAmount:C}", 
+            userId, userName, orderCount, totalAmount);
+        
+        // Destructuring with @ and formatting with alignment
+        var order = new { Id = "ORD-001", Items = 3, Total = 499.99m };
+        logger.LogInformation("Processing order {@Order} at {Timestamp:HH:mm:ss} | Status: {Status,10}", 
+            order, timestamp, "Pending");
+        
+        // Stringification with $ and positional parameters
+        var config = new Dictionary<string, object> { ["timeout"] = 30, ["retries"] = 3 };
+        logger.LogWarning("Configuration {$Config} using legacy format: {0}, {1}, {2}", 
+            config, "Warning", "Code-123", 42);
+        
+        // Complex formatting with alignment and precision
+        logger.LogInformation("Sales Report: Product {Product,-15} | Units: {Units,5} | Revenue: {Revenue,10:F2}", 
+            "Premium Widget", 147, 4521.3456);
+        
+        await Task.Delay(100);
     }
 
     private async Task BasicLoggingExamples()
