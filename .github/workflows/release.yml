@@ -55,11 +55,11 @@ jobs:
     - name: Build solution
       run: msbuild SerilogSyntax.sln /p:Configuration=Release /p:Platform="Any CPU" /p:DeployExtension=false
     
+    - name: Setup VSTest
+      uses: darenm/Setup-VSTest@v1.2
+    
     - name: Run tests
-      run: |
-        & "$(vswhere -latest -products * -requires Microsoft.Component.MSBuild -find **\vstest.console.exe)" `
-          SerilogSyntax.Tests\bin\Release\net472\SerilogSyntax.Tests.dll
-      shell: pwsh
+      run: vstest.console.exe SerilogSyntax.Tests\bin\Release\net472\SerilogSyntax.Tests.dll /Logger:trx
     
     - name: Extract changelog for version
       id: changelog
