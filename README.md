@@ -7,13 +7,13 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 ## Features
 
 ### 🎨 Syntax Highlighting
-- **Property names** highlighted in teal: `{UserId}`, `{UserName}`
-- **Destructuring operator** `@` highlighted in orange: `{@User}`
-- **Stringification operator** `$` highlighted in orange: `{$Settings}`
-- **Format specifiers** highlighted in green: `{Timestamp:yyyy-MM-dd}`
+- **Property names** highlighted in blue: `{UserId}`, `{UserName}`
+- **Destructuring operator** `@` highlighted in dark goldenrod: `{@User}`
+- **Stringification operator** `$` highlighted in dark goldenrod: `{$Settings}`
+- **Format specifiers** highlighted in teal: `{Timestamp:yyyy-MM-dd}`
 - **Alignment** highlighted in red: `{Name,10}`, `{Price,-8}`
-- **Positional parameters** highlighted in purple: `{0}`, `{1}`
-- **Property braces** highlighted in gray for structure
+- **Positional parameters** highlighted in dark violet: `{0}`, `{1}`
+- **Property braces** highlighted in purple for structure
 
 ### 🔗 Smart Detection
 - Works with any logger variable name (not just `_logger` or `log`)
@@ -93,10 +93,10 @@ Log.Information("User {UserId} logged in with {@Details} at {Timestamp:HH:mm:ss}
 ```
 
 You should see:
-- `UserId` in teal
-- `@` in orange, `Details` in teal  
-- `Timestamp` in teal, `:HH:mm:ss` in green
-- Matching braces highlighted when cursor is on them
+- `UserId` in blue
+- `@` in dark goldenrod, `Details` in blue  
+- `Timestamp` in blue, `:HH:mm:ss` in teal
+- Matching braces highlighted in purple when cursor is on them
 
 ## Supported Serilog Syntax
 
