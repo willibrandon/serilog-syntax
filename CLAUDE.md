@@ -71,7 +71,7 @@ To test the extension, press F5 in Visual Studio which will launch a new VS inst
 - The extension targets .NET Framework 4.7.2
 - Uses Visual Studio SDK v17.0.32112.339
 - Configured for Visual Studio Community 2022 (17.0-18.0)
-- Currently an empty VSIX project template - no Serilog-specific functionality implemented yet
+- Fully functional with syntax highlighting, navigation, and brace matching
 
 ## Implementation Overview
 
@@ -110,12 +110,13 @@ Colors meet WCAG AA accessibility standards and are customizable via Tools > Opt
 - LogError with exception: `logger.LogError(ex, "Error: {Message}", msg)`
 
 ### Key Implementation Files
-When implementing, create these components:
-1. **Parsing/TemplateParser.cs** - State machine to extract properties (no validation)
-2. **Classification/SerilogClassifier.cs** - Implements `IClassifier` for highlighting
+The extension includes these components:
+1. **Parsing/TemplateParser.cs** - State machine to extract properties from message templates
+2. **Classification/SerilogClassifier.cs** - Implements `IClassifier` for syntax highlighting
 3. **Classification/SerilogClassifierProvider.cs** - MEF export for classifier
-4. **Navigation/SerilogGoToDefinitionProvider.cs** - Navigation from properties to arguments
-5. **Tagging/SerilogBraceMatchingTagger.cs** - Implements `ITagger<TextMarkerTag>` for braces
+4. **Navigation/SerilogNavigationProvider.cs** - Navigation from properties to arguments via light bulb
+5. **Tagging/SerilogBraceMatcher.cs** - Implements `ITagger<TextMarkerTag>` for brace matching
+6. **Utilities/SerilogCallDetector.cs** - Centralized Serilog call detection logic
 
 ### Performance Considerations
 - Cache parsed templates by string content
