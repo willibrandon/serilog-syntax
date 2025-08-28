@@ -31,7 +31,15 @@ jobs:
       run: |
         $manifest = "SerilogSyntax\source.extension.vsixmanifest"
         $content = Get-Content $manifest -Raw
-        $content = $content -replace '(?<=Version=")[^"]*', '${{ steps.version.outputs.VERSION }}'
+        $version = '${{ steps.version.outputs.VERSION }}'
+        
+        # VSIX requires 4-part version (Major.Minor.Build.Revision)
+        # If version is like 0.1.0, append .0 to make it 0.1.0.0
+        if ($version -match '^\d+\.\d+\.\d+$') {
+            $version = "$version.0"
+        }
+        
+        $content = $content -replace '(?<=Version=")[^"]*', $version
         Set-Content -Path $manifest -Value $content -NoNewline
       shell: pwsh
     
