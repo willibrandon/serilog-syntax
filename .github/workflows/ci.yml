@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+    
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+    
+    - name: Setup VSTest
+      uses: darenm/Setup-VSTest@v1.2
+    
+    - name: Restore NuGet packages
+      run: nuget restore SerilogSyntax.sln
+    
+    - name: Build solution
+      run: msbuild SerilogSyntax.sln /p:Configuration=Release /p:Platform="Any CPU"
+    
+    - name: Run tests
+      run: vstest.console.exe SerilogSyntax.Tests\bin\Release\net472\SerilogSyntax.Tests.dll /Logger:trx
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: vsix-package
+        path: SerilogSyntax\bin\Release\*.vsix
+        retention-days: 7
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: TestResults\*.trx
+        retention-days: 7

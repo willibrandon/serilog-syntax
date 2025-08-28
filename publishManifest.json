@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json.schemastore.org/vsix-publish",
+  "categories": ["coding", "productivity", "other"],
+  "identity": {
+    "internalName": "serilog-syntax"
+  },
+  "overview": "README.md",
+  "priceCategory": "free",
+  "publisher": "willibrandon",
+  "private": false,
+  "qna": true,
+  "repo": "https://github.com/willibrandon/serilog-syntax",
+  "badges": [
+    {
+      "url": "https://github.com/willibrandon/serilog-syntax/actions/workflows/ci.yml/badge.svg",
+      "href": "https://github.com/willibrandon/serilog-syntax/actions/workflows/ci.yml",
+      "description": "Build Status"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+    
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+    
+    - name: Extract version from tag
+      id: version
+      run: |
+        $TAG = "${{ github.ref_name }}"
+        $VERSION = $TAG.Substring(1)  # Remove 'v' prefix
+        echo "VERSION=$VERSION" >> $env:GITHUB_OUTPUT
+        echo "TAG=$TAG" >> $env:GITHUB_OUTPUT
+      shell: pwsh
+    
+    - name: Update version in vsixmanifest
+      run: |
+        $manifest = "SerilogSyntax\source.extension.vsixmanifest"
+        $content = Get-Content $manifest -Raw
+        $content = $content -replace '(?<=Version=")[^"]*', '${{ steps.version.outputs.VERSION }}'
+        Set-Content -Path $manifest -Value $content -NoNewline
+      shell: pwsh
+    
+    - name: Update AssemblyInfo version
+      run: |
+        $assemblyInfo = "SerilogSyntax\Properties\AssemblyInfo.cs"
+        $content = Get-Content $assemblyInfo -Raw
+        $version = '${{ steps.version.outputs.VERSION }}'
+        $content = $content -replace '(?<=AssemblyVersion\(")[^"]*', "$version.0"
+        $content = $content -replace '(?<=AssemblyFileVersion\(")[^"]*', "$version.0"
+        Set-Content -Path $assemblyInfo -Value $content -NoNewline
+      shell: pwsh
+    
+    - name: Restore NuGet packages
+      run: nuget restore SerilogSyntax.sln
+    
+    - name: Build solution
+      run: msbuild SerilogSyntax.sln /p:Configuration=Release /p:Platform="Any CPU" /p:DeployExtension=false
+    
+    - name: Run tests
+      run: |
+        & "$(vswhere -latest -products * -requires Microsoft.Component.MSBuild -find **\vstest.console.exe)" `
+          SerilogSyntax.Tests\bin\Release\net472\SerilogSyntax.Tests.dll
+      shell: pwsh
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: Release ${{ steps.version.outputs.VERSION }}
+        body: |
+          ## Serilog Syntax Extension v${{ steps.version.outputs.VERSION }}
+          
+          ### Features
+          - Syntax highlighting for Serilog message templates
+          - Navigation support (Go to Definition) for template properties
+          - Brace matching for template delimiters
+          - Support for all property types (standard, destructured, stringified, positional)
+          
+          ### Installation
+          Download the VSIX file and install it in Visual Studio 2022 or later.
+          
+          ### Requirements
+          - Visual Studio 2022 (17.0) or later
+          - .NET Framework 4.7.2 or later
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
+    
+    - name: Upload VSIX to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: SerilogSyntax\bin\Release\SerilogSyntax.vsix
+        asset_name: SerilogSyntax-${{ steps.version.outputs.VERSION }}.vsix
+        asset_content_type: application/zip
+    
+    - name: Upload VSIX as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vsix-release-${{ steps.version.outputs.VERSION }}
+        path: SerilogSyntax\bin\Release\*.vsix
+        retention-days: 30

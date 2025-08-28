@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="SerilogSyntax.33851f71-44fa-46e0-9f66-e0f039ca2681" Version="1.0" Language="en-US" Publisher="Brandon Williams" />
+    <Identity Id="SerilogSyntax.33851f71-44fa-46e0-9f66-e0f039ca2681" Version="0.1.0" Language="en-US" Publisher="willibrandon" />
     <DisplayName>Serilog Syntax Highlighting</DisplayName>
-    <Description>Syntax highlighting and navigation for Serilog message templates in C#/.NET projects</Description>
-    <Tags>serilog, logging, syntax, highlighting, csharp</Tags>
+    <Description>Provides syntax highlighting, navigation, and brace matching for Serilog message templates in C#/.NET projects. Supports all property types including standard, destructured, stringified, and positional properties.</Description>
+    <MoreInfo>https://github.com/willibrandon/serilog-syntax</MoreInfo>
+    <License>LICENSE.txt</License>
+    <GettingStartedGuide>https://github.com/willibrandon/serilog-syntax#getting-started</GettingStartedGuide>
+    <ReleaseNotes>https://github.com/willibrandon/serilog-syntax/releases</ReleaseNotes>
+    <Icon>Resources\icon.png</Icon>
+    <PreviewImage>Resources\preview.png</PreviewImage>
+    <Tags>serilog, logging, syntax, highlighting, csharp, dotnet, message templates, structured logging</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 18.0)">

@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("SerilogSyntax")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("Serilog syntax highlighting and navigation for Visual Studio")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("Brandon Williams")]
 [assembly: AssemblyProduct("SerilogSyntax")]
-[assembly: AssemblyCopyright("")]
+[assembly: AssemblyCopyright("Copyright © Brandon Williams 2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -29,8 +29,8 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("0.1.0.0")]
+[assembly: AssemblyFileVersion("0.1.0.0")]
 
 // Make internals visible to test assembly
 [assembly: InternalsVisibleTo("SerilogSyntax.Tests")]

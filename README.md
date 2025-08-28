@@ -40,10 +40,44 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 
 ## Installation
 
+### From Visual Studio Marketplace (Recommended)
+1. Open Visual Studio 2022
+2. Go to **Extensions** > **Manage Extensions**
+3. Search for "Serilog Syntax Highlighting"
+4. Click **Download** and restart Visual Studio
+
+### From GitHub Release
 1. Download the latest `.vsix` file from the [releases page](../../releases)
 2. Double-click the `.vsix` file to install in Visual Studio 2022
 3. Restart Visual Studio
-4. Open any C# file with Serilog logging to see the syntax highlighting
+
+## Getting Started
+
+After installation, the extension works automatically - no configuration required!
+
+1. **Open any C# file** that uses Serilog logging
+2. **Start typing** a Serilog log statement:
+   ```csharp
+   _logger.LogInformation("User {UserId} logged in", userId);
+   ```
+3. **See instant highlighting** as you type - properties turn blue, operators yellow, etc.
+4. **Try navigation**: Hover over a property like `{UserId}` and click the light bulb to jump to its argument
+5. **Test brace matching**: Place your cursor on any `{` or `}` to see its matching pair highlighted
+
+### Quick Test
+Create a new C# file and paste this to see all features:
+```csharp
+using Serilog;
+
+Log.Information("User {UserId} logged in with {@Details} at {Timestamp:HH:mm:ss}", 
+    userId, userDetails, DateTime.Now);
+```
+
+You should see:
+- `UserId` in light blue
+- `@` in yellow, `Details` in light blue  
+- `Timestamp` in light blue, `:HH:mm:ss` in light green
+- Matching braces highlighted when cursor is on them
 
 ## Supported Serilog Syntax
 
