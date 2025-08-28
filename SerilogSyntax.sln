@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36310.24 d17.14
+VisualStudioVersion = 17.14.36310.24
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerilogSyntax", "SerilogSyntax\SerilogSyntax.csproj", "{1EB62E81-BD00-4A3B-BB9E-232E202C9132}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerilogSyntax.Tests", "SerilogSyntax.Tests\SerilogSyntax.Tests.csproj", "{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -27,6 +29,18 @@ Global
 		{1EB62E81-BD00-4A3B-BB9E-232E202C9132}.Release|arm64.Build.0 = Release|arm64
 		{1EB62E81-BD00-4A3B-BB9E-232E202C9132}.Release|x86.ActiveCfg = Release|x86
 		{1EB62E81-BD00-4A3B-BB9E-232E202C9132}.Release|x86.Build.0 = Release|x86
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Debug|arm64.ActiveCfg = Debug|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Debug|arm64.Build.0 = Debug|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Debug|x86.Build.0 = Debug|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|arm64.ActiveCfg = Release|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|arm64.Build.0 = Release|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|x86.ActiveCfg = Release|Any CPU
+		{B2F7A4E8-7F9C-4C7B-9E5D-6A8C3B2D1F0E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
