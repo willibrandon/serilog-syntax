@@ -9,15 +9,20 @@ This is a Visual Studio extension (VSIX) project called SerilogSyntax that targe
 ## Build and Development Commands
 
 ### Building the Project
-```bash
-# Build the solution
-msbuild SerilogSyntax.sln /p:Configuration=Debug
+```powershell
+# Build using the build script (recommended)
+powershell -ExecutionPolicy Bypass -File build.ps1
 
 # Build for release
-msbuild SerilogSyntax.sln /p:Configuration=Release
+powershell -ExecutionPolicy Bypass -File build.ps1 -Configuration Release
 
-# Clean the solution
+# Build with different verbosity levels
+powershell -ExecutionPolicy Bypass -File build.ps1 -Verbosity detailed
+powershell -ExecutionPolicy Bypass -File build.ps1 -Verbosity diagnostic
+
+# Clean and rebuild
 msbuild SerilogSyntax.sln /t:Clean
+powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
 ### Running and Debugging
