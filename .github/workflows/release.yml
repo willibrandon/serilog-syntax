@@ -33,19 +33,9 @@ jobs:
         $content = Get-Content $manifest -Raw
         $version = '${{ steps.version.outputs.VERSION }}'
         
-        # VSIX requires 4-part version (Major.Minor.Build.Revision)
-        # But 0.1.0.0 is invalid - use 0.1.0.1 for initial release
-        if ($version -eq '0.1.0') {
-            $version = '0.1.0.1'
-        } elseif ($version -match '^\d+\.\d+\.\d+$') {
-            # For other 3-part versions, add .1 as revision
-            $version = "$version.1"
-        } elseif ($version -match '^\d+\.\d+$') {
-            # For 2-part versions, add .0.1
-            $version = "$version.0.1"
-        }
-        
-        $content = $content -replace '(?<=Version=")[^"]*', $version
+        # Update ONLY the Identity Version attribute
+        # Match the Identity element and replace just its Version attribute
+        $content = $content -replace '(<Identity[^>]+Version=")[^"]*("[^>]*>)', "`${1}$version`${2}"
         Set-Content -Path $manifest -Value $content -NoNewline
       shell: pwsh
     
