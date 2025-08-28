@@ -179,12 +179,12 @@ internal class SerilogClassifierProvider : IClassifierProvider
 Create `Navigation/SerilogGoToDefinitionProvider.cs`:
 
 Implementation approach:
-1. Implement `IGoToDefinitionService` 
+1. Hook into the existing Go to Definition command via VS command infrastructure
 2. Check if cursor is on a property name in a template
 3. Find the corresponding argument in the method call
 4. For positional properties {0}, {1}, map to argument index
 5. For named properties, map by position (1st property → 1st arg after template)
-6. Navigate to the argument's span
+6. Navigate to the argument's span using `ITextView.Caret.MoveTo`
 
 Key challenges:
 - Handle method calls that span multiple lines
@@ -292,7 +292,7 @@ serilog-syntax/
 - `ITextSnapshot` - Immutable text version
 - `SnapshotSpan` - Text region
 - `ITagAggregator` - For combining tags
-- `IGoToDefinitionService` - For navigation
+- VS Command infrastructure - For navigation hooks
 - `Microsoft.CodeAnalysis` - For parsing C# syntax
 
 ## Success Criteria
