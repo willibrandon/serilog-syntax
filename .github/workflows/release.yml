@@ -67,10 +67,31 @@ jobs:
         $version = '${{ steps.version.outputs.VERSION }}'
         $changelog = Get-Content "CHANGELOG.md" -Raw
         
-        # Extract section for this version
-        $pattern = "(?ms)## \[$version\][^\n]*\n(.*?)(?=^## \[|$)"
-        if ($changelog -match $pattern) {
-            $notes = $matches[1].Trim()
+        # Find the version section
+        $versionHeader = "## [$version]"
+        $startIndex = $changelog.IndexOf($versionHeader)
+        
+        if ($startIndex -ge 0) {
+            # Move past the header line
+            $startIndex = $changelog.IndexOf("`n", $startIndex) + 1
+            
+            # Find the end - either next ## or a link definition [xxx]:
+            $endPattern1 = $changelog.IndexOf("`n## ", $startIndex)
+            $endPattern2 = $changelog.IndexOf("`n[", $startIndex)
+            
+            $endIndex = -1
+            if ($endPattern1 -gt 0 -and $endPattern2 -gt 0) {
+                $endIndex = [Math]::Min($endPattern1, $endPattern2)
+            } elseif ($endPattern1 -gt 0) {
+                $endIndex = $endPattern1
+            } elseif ($endPattern2 -gt 0) {
+                $endIndex = $endPattern2
+            } else {
+                $endIndex = $changelog.Length
+            }
+            
+            $notes = $changelog.Substring($startIndex, $endIndex - $startIndex).Trim()
+            
             # Escape for GitHub Actions (replace % and newlines)
             $notes = $notes -replace '%', '%25'
             $notes = $notes -replace "`r`n", "%0A"
