@@ -16,7 +16,6 @@ namespace SerilogSyntax.Parsing
             var formatStartIndex = -1;
             var alignmentStartIndex = -1;
             var operatorIndex = -1;
-            var hasOperator = false;
             var propertyType = PropertyType.Standard;
             
             for (int i = 0; i < template.Length; i++)
@@ -41,7 +40,6 @@ namespace SerilogSyntax.Parsing
                                 formatStartIndex = -1;
                                 alignmentStartIndex = -1;
                                 operatorIndex = -1;
-                                hasOperator = false;
                                 propertyType = PropertyType.Standard;
                             }
                         }
@@ -56,7 +54,6 @@ namespace SerilogSyntax.Parsing
                         else if (ch == '@')
                         {
                             propertyType = PropertyType.Destructured;
-                            hasOperator = true;
                             operatorIndex = i;
                             propertyStartIndex = i + 1;
                             state = ParseState.Property;
@@ -64,7 +61,6 @@ namespace SerilogSyntax.Parsing
                         else if (ch == '$')
                         {
                             propertyType = PropertyType.Stringified;
-                            hasOperator = true;
                             operatorIndex = i;
                             propertyStartIndex = i + 1;
                             state = ParseState.Property;
