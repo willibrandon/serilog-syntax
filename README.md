@@ -2,21 +2,25 @@
 
 A Visual Studio 2022 extension that provides syntax highlighting, brace matching, and navigation features for Serilog message templates in C#/.NET projects.
 
+![Serilog Syntax Highlighting Preview](SerilogSyntax/Resources/preview.png)
+
 ## Features
 
 ### 🎨 Syntax Highlighting
-- **Property names** highlighted in light blue: `{UserId}`, `{UserName}`
-- **Destructuring operator** `@` highlighted in yellow: `{@User}`
-- **Stringification operator** `$` highlighted in yellow: `{$Settings}`
-- **Format specifiers** highlighted in light green: `{Timestamp:yyyy-MM-dd}`
-- **Alignment** highlighted in light green: `{Name,10}`, `{Price,-8}`
-- **Positional parameters** highlighted in light purple: `{0}`, `{1}`
-- **Property braces** highlighted for easy identification
+- **Property names** highlighted in teal: `{UserId}`, `{UserName}`
+- **Destructuring operator** `@` highlighted in orange: `{@User}`
+- **Stringification operator** `$` highlighted in orange: `{$Settings}`
+- **Format specifiers** highlighted in green: `{Timestamp:yyyy-MM-dd}`
+- **Alignment** highlighted in red: `{Name,10}`, `{Price,-8}`
+- **Positional parameters** highlighted in purple: `{0}`, `{1}`
+- **Property braces** highlighted in gray for structure
 
 ### 🔗 Smart Detection
 - Works with any logger variable name (not just `_logger` or `log`)
 - Supports both direct Serilog calls: `Log.Information(...)`
 - Supports Microsoft.Extensions.Logging integration: `_logger.LogInformation(...)`
+- Supports `BeginScope` for scoped logging: `logger.BeginScope("Operation={Id}", operationId)`
+- Supports `LogError` with exception parameter: `logger.LogError(ex, "Error: {Message}", msg)`
 - Recognizes configuration templates: `outputTemplate: "[{Timestamp:HH:mm:ss}...]"`
 
 ### ⚡ Real-time Highlighting
@@ -47,6 +51,25 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 2. Double-click the `.vsix` file to install in Visual Studio 2022
 3. Restart Visual Studio
 
+## Customization
+
+### Color Customization
+The extension's colors can be customized to match your preferences:
+
+1. Go to **Tools** > **Options** > **Environment** > **Fonts and Colors**
+2. In the **Display items** list, look for:
+   - Serilog Property Name
+   - Serilog Destructure Operator (@)
+   - Serilog Stringify Operator ($)
+   - Serilog Format Specifier
+   - Serilog Alignment
+   - Serilog Positional Index
+   - Serilog Property Brace
+3. Select any item and modify its **Item foreground** color
+4. Click **OK** to apply changes
+
+The extension uses colors that work well in both light and dark themes by default, meeting WCAG AA accessibility standards.
+
 ## Getting Started
 
 After installation, the extension works automatically - no configuration required!
@@ -70,9 +93,9 @@ Log.Information("User {UserId} logged in with {@Details} at {Timestamp:HH:mm:ss}
 ```
 
 You should see:
-- `UserId` in light blue
-- `@` in yellow, `Details` in light blue  
-- `Timestamp` in light blue, `:HH:mm:ss` in light green
+- `UserId` in teal
+- `@` in orange, `Details` in teal  
+- `Timestamp` in teal, `:HH:mm:ss` in green
 - Matching braces highlighted when cursor is on them
 
 ## Supported Serilog Syntax

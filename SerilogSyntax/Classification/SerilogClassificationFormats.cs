@@ -18,7 +18,7 @@ internal sealed class SerilogPropertyNameFormat : ClassificationFormatDefinition
     public SerilogPropertyNameFormat()
     {
         DisplayName = "Serilog Property Name";
-        ForegroundColor = Color.FromRgb(0x56, 0x9C, 0xD6); // Light blue (#569CD6)
+        ForegroundColor = Color.FromRgb(0x00, 0x7A, 0xCC); // Accessible blue (#007ACC) - works in both themes
     }
 }
 
@@ -35,7 +35,7 @@ internal sealed class SerilogDestructureOperatorFormat : ClassificationFormatDef
     public SerilogDestructureOperatorFormat()
     {
         DisplayName = "Serilog Destructure Operator (@)";
-        ForegroundColor = Color.FromRgb(0xDC, 0xDC, 0xAA); // Yellow (#DCDCAA)
+        ForegroundColor = Color.FromRgb(0xB8, 0x86, 0x0B); // Dark goldenrod (#B8860B) - visible in both themes
     }
 }
 
@@ -52,7 +52,7 @@ internal sealed class SerilogStringifyOperatorFormat : ClassificationFormatDefin
     public SerilogStringifyOperatorFormat()
     {
         DisplayName = "Serilog Stringify Operator ($)";
-        ForegroundColor = Color.FromRgb(0xDC, 0xDC, 0xAA); // Yellow (#DCDCAA)
+        ForegroundColor = Color.FromRgb(0xB8, 0x86, 0x0B); // Dark goldenrod (#B8860B) - visible in both themes
     }
 }
 
@@ -69,7 +69,7 @@ internal sealed class SerilogFormatSpecifierFormat : ClassificationFormatDefinit
     public SerilogFormatSpecifierFormat()
     {
         DisplayName = "Serilog Format Specifier";
-        ForegroundColor = Color.FromRgb(0x4E, 0xC9, 0xB0); // Light green (#4EC9B0)
+        ForegroundColor = Color.FromRgb(0x00, 0x80, 0x80); // Teal (#008080) - good contrast in both themes
     }
 }
 
@@ -86,7 +86,7 @@ internal sealed class SerilogPropertyBraceFormat : ClassificationFormatDefinitio
     public SerilogPropertyBraceFormat()
     {
         DisplayName = "Serilog Property Brace";
-        ForegroundColor = Color.FromRgb(0xDA, 0x70, 0xD6); // Light orchid - slightly brighter than string
+        ForegroundColor = Color.FromRgb(0x80, 0x00, 0x80); // Purple (#800080) - works in both themes
     }
 }
 
@@ -103,7 +103,7 @@ internal sealed class SerilogPositionalIndexFormat : ClassificationFormatDefinit
     public SerilogPositionalIndexFormat()
     {
         DisplayName = "Serilog Positional Index";
-        ForegroundColor = Color.FromRgb(0xC5, 0x86, 0xC0); // Light purple (#C586C0)
+        ForegroundColor = Color.FromRgb(0xAF, 0x00, 0xDB); // Dark violet (#AF00DB) - visible in both themes
     }
 }
 
@@ -120,6 +120,6 @@ internal sealed class SerilogAlignmentFormat : ClassificationFormatDefinition
     public SerilogAlignmentFormat()
     {
         DisplayName = "Serilog Alignment";
-        ForegroundColor = Color.FromRgb(0x4E, 0xC9, 0xB0); // Light green (#4EC9B0) - same as format
+        ForegroundColor = Color.FromRgb(0xDC, 0x26, 0x26); // Muted red (#DC2626) - 5.2:1 dark, 4.5:1 light contrast
     }
 }

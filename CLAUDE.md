@@ -92,18 +92,22 @@ This extension provides syntax highlighting and navigation for Serilog message t
 
 ### Template Syntax Support
 The extension highlights the following Serilog template elements:
-- `{PropertyName}` - Standard property (light blue)
-- `{@PropertyName}` - Destructured property (@ in yellow, property in light blue)
-- `{$PropertyName}` - Stringified property ($ in yellow, property in light blue)
-- `{PropertyName:format}` - Format specifier (property in light blue, :format in light green)
-- `{PropertyName,alignment}` - Alignment (property in light blue, alignment in light green)
-- `{0}`, `{1}` - Positional properties (light purple)
-- Braces `{` `}` - Slightly brighter than string color
+- `{PropertyName}` - Standard property (teal)
+- `{@PropertyName}` - Destructured property (@ in orange, property in teal)
+- `{$PropertyName}` - Stringified property ($ in orange, property in teal)
+- `{PropertyName:format}` - Format specifier (property in teal, :format in green)
+- `{PropertyName,alignment}` - Alignment (property in teal, alignment in red)
+- `{0}`, `{1}` - Positional properties (purple)
+- Braces `{` `}` - Gray for structure
+
+Colors meet WCAG AA accessibility standards and are customizable via Tools > Options > Environment > Fonts and Colors.
 
 ### Supported Serilog Calls
 - Direct logger: `Log.Information("User {UserId} logged in", userId)`
 - ILogger interface: `_logger.LogInformation("User {UserId} logged in", userId)`
 - Contextual logger: `Log.ForContext<T>().Information("User {UserId} logged in", userId)`
+- BeginScope: `logger.BeginScope("Operation={Id}", operationId)`
+- LogError with exception: `logger.LogError(ex, "Error: {Message}", msg)`
 
 ### Key Implementation Files
 When implementing, create these components:
