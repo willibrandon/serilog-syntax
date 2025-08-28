@@ -2,10 +2,6 @@
 
 A Visual Studio 2022 extension that provides syntax highlighting, brace matching, and navigation features for Serilog message templates in C#/.NET projects.
 
-![Visual Studio Extension](https://img.shields.io/badge/Visual%20Studio-2022-blue)
-![.NET Framework](https://img.shields.io/badge/.NET%20Framework-4.7.2-green)
-![License](https://img.shields.io/badge/license-MIT-blue)
-
 ## Features
 
 ### 🎨 Syntax Highlighting
