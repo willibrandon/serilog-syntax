@@ -41,10 +41,11 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 ## Installation
 
 ### From Visual Studio Marketplace (Recommended)
-1. Open Visual Studio 2022
-2. Go to **Extensions** > **Manage Extensions**
-3. Search for "Serilog Syntax Highlighting"
-4. Click **Download** and restart Visual Studio
+1. Install directly from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=mtlog.SerilogSyntax)
+2. Or from within Visual Studio 2022:
+   - Go to **Extensions** > **Manage Extensions**
+   - Search for "Serilog Syntax Highlighting"
+   - Click **Download** and restart Visual Studio
 
 ### From GitHub Release
 1. Download the latest `.vsix` file from the [releases page](../../releases)
