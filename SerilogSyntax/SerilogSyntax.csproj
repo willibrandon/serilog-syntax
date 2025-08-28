@@ -49,10 +49,12 @@
     <Compile Include="Classification\SerilogClassificationTypes.cs" />
     <Compile Include="Classification\SerilogClassifier.cs" />
     <Compile Include="Classification\SerilogClassifierProvider.cs" />
+    <Compile Include="Navigation\SerilogNavigationProvider.cs" />
     <Compile Include="Parsing\TemplateParser.cs" />
     <Compile Include="Parsing\TemplateProperty.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SerilogSyntaxPackage.cs" />
+    <Compile Include="Tagging\SerilogBraceMatcher.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="source.extension.vsixmanifest">
@@ -68,6 +70,7 @@
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.0.32112.339" ExcludeAssets="runtime" NoWarn="NU1604" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2101" NoWarn="NU1604" />
     <PackageReference Include="Microsoft.VisualStudio.Language.StandardClassification" Version="17.1.386" />
+    <PackageReference Include="Microsoft.VisualStudio.Language.Intellisense" Version="17.1.386" />
     <PackageReference Include="Microsoft.VisualStudio.Text.UI.Wpf" Version="17.1.386" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
