@@ -2,6 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
+	<LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
     <AssemblyName>SerilogSyntax.Tests</AssemblyName>
     <RootNamespace>SerilogSyntax.Tests</RootNamespace>

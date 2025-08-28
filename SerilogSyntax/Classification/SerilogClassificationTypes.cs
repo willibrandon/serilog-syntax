@@ -2,44 +2,94 @@ using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
 using System.ComponentModel.Composition;
 
-namespace SerilogSyntax.Classification
+namespace SerilogSyntax.Classification;
+
+/// <summary>
+/// Defines the classification type names and definitions for Serilog template elements.
+/// </summary>
+internal static class SerilogClassificationTypes
 {
-    internal static class SerilogClassificationTypes
-    {
-        public const string PropertyName = "serilog.property.name";
-        public const string DestructureOperator = "serilog.operator.destructure";
-        public const string StringifyOperator = "serilog.operator.stringify";
-        public const string FormatSpecifier = "serilog.format";
-        public const string PropertyBrace = "serilog.brace";
-        public const string PositionalIndex = "serilog.index";
-        public const string Alignment = "serilog.alignment";
+    /// <summary>
+    /// Classification type name for property names in templates.
+    /// </summary>
+    public const string PropertyName = "serilog.property.name";
 
-        [Export(typeof(ClassificationTypeDefinition))]
-        [Name(PropertyName)]
-        internal static ClassificationTypeDefinition PropertyNameType = null;
+    /// <summary>
+    /// Classification type name for the destructure operator (@).
+    /// </summary>
+    public const string DestructureOperator = "serilog.operator.destructure";
 
-        [Export(typeof(ClassificationTypeDefinition))]
-        [Name(DestructureOperator)]
-        internal static ClassificationTypeDefinition DestructureOperatorType = null;
+    /// <summary>
+    /// Classification type name for the stringify operator ($).
+    /// </summary>
+    public const string StringifyOperator = "serilog.operator.stringify";
 
-        [Export(typeof(ClassificationTypeDefinition))]
-        [Name(StringifyOperator)]
-        internal static ClassificationTypeDefinition StringifyOperatorType = null;
+    /// <summary>
+    /// Classification type name for format specifiers.
+    /// </summary>
+    public const string FormatSpecifier = "serilog.format";
 
-        [Export(typeof(ClassificationTypeDefinition))]
-        [Name(FormatSpecifier)]
-        internal static ClassificationTypeDefinition FormatSpecifierType = null;
+    /// <summary>
+    /// Classification type name for property braces.
+    /// </summary>
+    public const string PropertyBrace = "serilog.brace";
 
-        [Export(typeof(ClassificationTypeDefinition))]
-        [Name(PropertyBrace)]
-        internal static ClassificationTypeDefinition PropertyBraceType = null;
+    /// <summary>
+    /// Classification type name for positional indices.
+    /// </summary>
+    public const string PositionalIndex = "serilog.index";
 
-        [Export(typeof(ClassificationTypeDefinition))]
-        [Name(PositionalIndex)]
-        internal static ClassificationTypeDefinition PositionalIndexType = null;
+    /// <summary>
+    /// Classification type name for alignment values.
+    /// </summary>
+    public const string Alignment = "serilog.alignment";
 
-        [Export(typeof(ClassificationTypeDefinition))]
-        [Name(Alignment)]
-        internal static ClassificationTypeDefinition AlignmentType = null;
-    }
+    /// <summary>
+    /// Classification type definition for property names.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(PropertyName)]
+    internal static ClassificationTypeDefinition PropertyNameType = null;
+
+    /// <summary>
+    /// Classification type definition for the destructure operator.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(DestructureOperator)]
+    internal static ClassificationTypeDefinition DestructureOperatorType = null;
+
+    /// <summary>
+    /// Classification type definition for the stringify operator.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(StringifyOperator)]
+    internal static ClassificationTypeDefinition StringifyOperatorType = null;
+
+    /// <summary>
+    /// Classification type definition for format specifiers.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(FormatSpecifier)]
+    internal static ClassificationTypeDefinition FormatSpecifierType = null;
+
+    /// <summary>
+    /// Classification type definition for property braces.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(PropertyBrace)]
+    internal static ClassificationTypeDefinition PropertyBraceType = null;
+
+    /// <summary>
+    /// Classification type definition for positional indices.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(PositionalIndex)]
+    internal static ClassificationTypeDefinition PositionalIndexType = null;
+
+    /// <summary>
+    /// Classification type definition for alignment values.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(Alignment)]
+    internal static ClassificationTypeDefinition AlignmentType = null;
 }
