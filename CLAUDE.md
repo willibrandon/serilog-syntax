@@ -11,18 +11,33 @@ This is a Visual Studio extension (VSIX) project called SerilogSyntax that targe
 ### Building the Project
 ```powershell
 # Build using the build script (recommended)
-powershell -ExecutionPolicy Bypass -File build.ps1
+.\build.ps1
 
 # Build for release
-powershell -ExecutionPolicy Bypass -File build.ps1 -Configuration Release
+.\build.ps1 -Configuration Release
 
 # Build with different verbosity levels
-powershell -ExecutionPolicy Bypass -File build.ps1 -Verbosity detailed
-powershell -ExecutionPolicy Bypass -File build.ps1 -Verbosity diagnostic
+.\build.ps1 -Verbosity detailed
+.\build.ps1 -Verbosity diagnostic
 
 # Clean and rebuild
 msbuild SerilogSyntax.sln /t:Clean
-powershell -ExecutionPolicy Bypass -File build.ps1
+.\build.ps1
+```
+
+### Running Tests
+```powershell
+# Run all tests
+.\test.ps1
+
+# Run tests without rebuilding
+.\test.ps1 -NoBuild
+
+# Run specific tests (filter by name)
+.\test.ps1 -Filter "TestMethodName"
+
+# Run release tests
+.\test.ps1 -Configuration Release
 ```
 
 ### Running and Debugging
@@ -36,10 +51,13 @@ To test the extension, press F5 in Visual Studio which will launch a new VS inst
 
 ### Project Structure
 - **SerilogSyntax.sln** - Main solution file
-- **SerilogSyntax/** - Main project directory
+- **SerilogSyntax/** - Main VSIX extension project
   - **SerilogSyntaxPackage.cs** - Main package class that implements the VS extension entry point
   - **source.extension.vsixmanifest** - Extension manifest defining metadata and installation targets
   - **Properties/AssemblyInfo.cs** - Assembly metadata
+- **SerilogSyntax.Tests/** - xUnit test project (.NET Framework 4.7.2)
+- **build.ps1** - Build script for the solution
+- **test.ps1** - Test runner script
 
 ### Key Components
 
