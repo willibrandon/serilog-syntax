@@ -2,8 +2,9 @@
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
     <Identity Id="SerilogSyntax.33851f71-44fa-46e0-9f66-e0f039ca2681" Version="1.0" Language="en-US" Publisher="Brandon Williams" />
-    <DisplayName>SerilogSyntax</DisplayName>
-    <Description>Empty VSIX Project.</Description>
+    <DisplayName>Serilog Syntax Highlighting</DisplayName>
+    <Description>Syntax highlighting and navigation for Serilog message templates in C#/.NET projects</Description>
+    <Tags>serilog, logging, syntax, highlighting, csharp</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 18.0)">
@@ -18,5 +19,6 @@
   </Prerequisites>
   <Assets>
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%|" />
   </Assets>
 </PackageManifest>

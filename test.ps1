@@ -40,7 +40,7 @@ if (-not $NoBuild) {
 
 # Run tests
 Write-Host "`nRunning tests..." -ForegroundColor Cyan
-$testDll = "SerilogSyntax.Tests\bin\$Configuration\SerilogSyntax.Tests.dll"
+$testDll = "SerilogSyntax.Tests\bin\$Configuration\net472\SerilogSyntax.Tests.dll"
 
 if (-not (Test-Path $testDll)) {
     Write-Error "Test assembly not found: $testDll"
