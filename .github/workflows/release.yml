@@ -57,6 +57,27 @@ jobs:
           SerilogSyntax.Tests\bin\Release\net472\SerilogSyntax.Tests.dll
       shell: pwsh
     
+    - name: Extract changelog for version
+      id: changelog
+      run: |
+        $version = '${{ steps.version.outputs.VERSION }}'
+        $changelog = Get-Content "CHANGELOG.md" -Raw
+        
+        # Extract section for this version
+        $pattern = "(?ms)## \[$version\][^\n]*\n(.*?)(?=^## \[|$)"
+        if ($changelog -match $pattern) {
+            $notes = $matches[1].Trim()
+            # Escape for GitHub Actions (replace % and newlines)
+            $notes = $notes -replace '%', '%25'
+            $notes = $notes -replace "`r`n", "%0A"
+            $notes = $notes -replace "`n", "%0A"
+            $notes = $notes -replace "`r", "%0D"
+            echo "NOTES=$notes" >> $env:GITHUB_OUTPUT
+        } else {
+            echo "NOTES=See CHANGELOG.md for details" >> $env:GITHUB_OUTPUT
+        }
+      shell: pwsh
+    
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -64,22 +85,19 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ steps.version.outputs.VERSION }}
+        release_name: Serilog Syntax Highlighting v${{ steps.version.outputs.VERSION }}
         body: |
-          ## Serilog Syntax Extension v${{ steps.version.outputs.VERSION }}
+          ## Installation
+          Download the attached VSIX file and double-click to install in Visual Studio 2022.
           
-          ### Features
-          - Syntax highlighting for Serilog message templates
-          - Navigation support (Go to Definition) for template properties
-          - Brace matching for template delimiters
-          - Support for all property types (standard, destructured, stringified, positional)
+          ## What's Changed
+          ${{ steps.changelog.outputs.NOTES }}
           
-          ### Installation
-          Download the VSIX file and install it in Visual Studio 2022 or later.
-          
-          ### Requirements
+          ## Requirements
           - Visual Studio 2022 (17.0) or later
           - .NET Framework 4.7.2 or later
+          
+          **Full Changelog**: https://github.com/willibrandon/serilog-syntax/blob/main/CHANGELOG.md
         draft: false
         prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
     
