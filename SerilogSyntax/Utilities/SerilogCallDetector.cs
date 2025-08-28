@@ -12,8 +12,8 @@ internal static class SerilogCallDetector
     /// Regex pattern that matches Serilog method calls and configuration templates.
     /// Supports both direct Serilog calls and Microsoft.Extensions.Logging integration.
     /// </summary>
-    private static readonly Regex SerilogCallRegex = new Regex(
-        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write))\s*\()|(?:outputTemplate\s*:\s*)",
+    private static readonly Regex SerilogCallRegex = new(
+        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:outputTemplate\s*:\s*)",
         RegexOptions.Compiled);
 
     /// <summary>

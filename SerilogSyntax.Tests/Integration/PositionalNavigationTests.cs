@@ -21,14 +21,14 @@ public class PositionalNavigationTests
             new TemplateProperty { Name = "UserName", Type = PropertyType.Standard }
         }.ToList();
 
-        var source = new SerilogSuggestedActionsSource(null, null, null);
+        var source = new SerilogSuggestedActionsSource(null);
         var getArgumentIndexMethod = typeof(SerilogSuggestedActionsSource)
             .GetMethod("GetArgumentIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
         // Act
-        var index0 = (int)getArgumentIndexMethod.Invoke(source, new object[] { properties, properties[0] });
-        var index1 = (int)getArgumentIndexMethod.Invoke(source, new object[] { properties, properties[1] });
-        var indexNamed = (int)getArgumentIndexMethod.Invoke(source, new object[] { properties, properties[2] });
+        var index0 = (int)getArgumentIndexMethod.Invoke(source, [properties, properties[0]]);
+        var index1 = (int)getArgumentIndexMethod.Invoke(source, [properties, properties[1]]);
+        var indexNamed = (int)getArgumentIndexMethod.Invoke(source, [properties, properties[2]]);
 
         // Assert
         Assert.Equal(0, index0);
@@ -75,12 +75,12 @@ public class PositionalNavigationTests
             new TemplateProperty { Name = "invalid", Type = PropertyType.Positional }
         }.ToList();
 
-        var source = new SerilogSuggestedActionsSource(null, null, null);
+        var source = new SerilogSuggestedActionsSource(null);
         var getArgumentIndexMethod = typeof(SerilogSuggestedActionsSource)
             .GetMethod("GetArgumentIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
         // Act
-        var result = (int)getArgumentIndexMethod.Invoke(source, new object[] { properties, properties[0] });
+        var result = (int)getArgumentIndexMethod.Invoke(source, [properties, properties[0]]);
 
         // Assert
         Assert.Equal(-1, result);

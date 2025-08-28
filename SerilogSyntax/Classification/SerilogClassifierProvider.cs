@@ -25,7 +25,7 @@ internal class SerilogClassifierProvider : IClassifierProvider
     /// Cache of classifiers per text buffer to ensure one classifier instance per buffer.
     /// Uses weak references to allow garbage collection when buffers are closed.
     /// </summary>
-    private readonly ConditionalWeakTable<ITextBuffer, SerilogClassifier> _classifiers = new ConditionalWeakTable<ITextBuffer, SerilogClassifier>();
+    private readonly ConditionalWeakTable<ITextBuffer, SerilogClassifier> _classifiers = new();
 
     /// <summary>
     /// Gets a classifier for the given text buffer.

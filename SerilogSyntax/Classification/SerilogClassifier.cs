@@ -30,10 +30,10 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private readonly IClassificationType _alignmentType;
 
     // Performance optimizations
-    private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new ConcurrentDictionary<string, List<TemplateProperty>>();
-    private readonly object _cacheLock = new object();
+    private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new();
+    private readonly object _cacheLock = new();
     private ITextSnapshot _lastSnapshot;
-    private ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>> _classificationCache = new ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>>();
+    private readonly ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>> _classificationCache = new();
 
 
     /// <summary>
@@ -160,12 +160,12 @@ internal class SerilogClassifier : IClassifier, IDisposable
         {
             try
             {
-                return _parser.Parse(t).ToList();
+                return [.. _parser.Parse(t)];
             }
             catch
             {
                 // Return empty list on parse error
-                return new List<TemplateProperty>();
+                return [];
             }
         });
     }
@@ -254,10 +254,37 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// <returns>A tuple containing the start position, end position, and content of the string literal, or null if not found.</returns>
     private (int start, int end, string text)? FindStringLiteral(string text, int startIndex, int spanStart)
     {
-        // Skip whitespace
-        while (startIndex < text.Length && char.IsWhiteSpace(text[startIndex]))
+        // Look for the first string literal, which might not be immediately after the method call
+        // (e.g., LogError(ex, "message") has an exception parameter first)
+        int parenDepth = 1; // We're already inside the first parenthesis from the method call
+        
+        while (startIndex < text.Length && parenDepth > 0)
+        {
+            // Skip whitespace
+            while (startIndex < text.Length && char.IsWhiteSpace(text[startIndex]))
+                startIndex++;
+            
+            if (startIndex >= text.Length)
+                return null;
+            
+            // Check if we found a string literal
+            if (text[startIndex] == '"')
+                break;
+            
+            // Track parenthesis depth to handle nested calls
+            if (text[startIndex] == '(')
+                parenDepth++;
+            else if (text[startIndex] == ')')
+            {
+                parenDepth--;
+                if (parenDepth == 0)
+                    return null; // Reached the end of the method call without finding a string
+            }
+            
+            // Skip this character and continue looking
             startIndex++;
-
+        }
+        
         if (startIndex >= text.Length || text[startIndex] != '"')
             return null;
 

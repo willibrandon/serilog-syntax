@@ -40,26 +40,18 @@ internal class SerilogSuggestedActionsSourceProvider : ISuggestedActionsSourcePr
         if (textBuffer == null || textView == null)
             return null;
         
-        return new SerilogSuggestedActionsSource(this, textView, textBuffer);
+        return new SerilogSuggestedActionsSource(textView);
     }
 }
 
 /// <summary>
 /// Provides suggested actions for navigating from Serilog template properties to their arguments.
 /// </summary>
-internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
+internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedActionsSource
 {
-    private readonly SerilogSuggestedActionsSourceProvider _provider;
-    private readonly ITextView _textView;
-    private readonly ITextBuffer _textBuffer;
-    private readonly TemplateParser _parser = new TemplateParser();
+    public event EventHandler<EventArgs> SuggestedActionsChanged { add { } remove { } }
 
-    public SerilogSuggestedActionsSource(SerilogSuggestedActionsSourceProvider provider, ITextView textView, ITextBuffer textBuffer)
-    {
-        _provider = provider;
-        _textView = textView;
-        _textBuffer = textBuffer;
-    }
+    private readonly TemplateParser _parser = new();
 
     /// <summary>
     /// Determines whether suggested actions are available at the given location.
@@ -68,7 +60,10 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
     /// <param name="range">The span to check.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>True if navigation is available from a template property at the cursor position.</returns>
-    public async Task<bool> HasSuggestedActionsAsync(ISuggestedActionCategorySet requestedActionCategories, SnapshotSpan range, CancellationToken cancellationToken)
+    public async Task<bool> HasSuggestedActionsAsync(
+        ISuggestedActionCategorySet requestedActionCategories,
+        SnapshotSpan range,
+        CancellationToken cancellationToken)
     {
         return await Task.Run(() =>
         {
@@ -115,7 +110,10 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
     /// <param name="range">The span to get actions for.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A collection of suggested action sets for navigating to arguments.</returns>
-    public IEnumerable<SuggestedActionSet> GetSuggestedActions(ISuggestedActionCategorySet requestedActionCategories, SnapshotSpan range, CancellationToken cancellationToken)
+    public IEnumerable<SuggestedActionSet> GetSuggestedActions(
+        ISuggestedActionCategorySet requestedActionCategories,
+        SnapshotSpan range,
+        CancellationToken cancellationToken)
     {
         var triggerPoint = range.Start;
         var line = triggerPoint.GetContainingLine();
@@ -161,8 +159,14 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
             {
                 var actions = new ISuggestedAction[] 
                 {
-                    new NavigateToArgumentAction(_textView, lineStart + argumentLocation.Value.Item1, argumentLocation.Value.Item2, property.Name, property.Type)
+                    new NavigateToArgumentAction(
+                        textView,
+                        lineStart + argumentLocation.Value.Item1,
+                        argumentLocation.Value.Item2,
+                        property.Name,
+                        property.Type)
                 };
+
                 yield return new SuggestedActionSet(null, actions, null, SuggestedActionSetPriority.Medium);
             }
         }
@@ -213,8 +217,10 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
                 {
                     if (line[end] == '\\')
                         end++; // Skip escaped char
+
                     end++;
                 }
+
                 if (end < line.Length)
                     return (i + 1, end);
             }
@@ -231,8 +237,10 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
                             end += 2; // Skip escaped quote
                             continue;
                         }
+
                         return (i + 2, end);
                     }
+
                     end++;
                 }
             }
@@ -319,6 +327,7 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
                 {
                     inString = false;
                 }
+
                 continue;
             }
             else if (inString)
@@ -332,8 +341,10 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
                 case '(':
                     parenDepth++;
                     break;
+
                 case ')':
                     parenDepth--;
+
                     if (parenDepth < 0) // End of method call
                     {
                         // Add the current argument if we have content
@@ -345,21 +356,28 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
                                 arguments.Add((argumentStart, argText.Length));
                             }
                         }
+
                         return arguments;
                     }
+
                     break;
+
                 case '[':
                     bracketDepth++;
                     break;
+
                 case ']':
                     bracketDepth--;
                     break;
+
                 case '{':
                     braceDepth++;
                     break;
+
                 case '}':
                     braceDepth--;
                     break;
+
                 case ',':
                     // Only treat as argument separator if we're at the top level
                     if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
@@ -377,6 +395,7 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
                         argumentStart = current;
                         current--; // Compensate for loop increment
                     }
+
                     break;
             }
         }
@@ -403,33 +422,21 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
         telemetryId = Guid.Empty;
         return false;
     }
-
-    public event EventHandler<EventArgs> SuggestedActionsChanged { add { } remove { } }
 }
 
 /// <summary>
 /// Represents an action to navigate from a template property to its corresponding argument.
 /// </summary>
-internal class NavigateToArgumentAction : ISuggestedAction
+internal class NavigateToArgumentAction(
+    ITextView textView,
+    int position,
+    int length,
+    string propertyName,
+    PropertyType propertyType) : ISuggestedAction
 {
-    private readonly ITextView _textView;
-    private readonly int _position;
-    private readonly int _length;
-    private readonly string _propertyName;
-    private readonly PropertyType _propertyType;
-
-    public NavigateToArgumentAction(ITextView textView, int position, int length, string propertyName, PropertyType propertyType)
-    {
-        _textView = textView;
-        _position = position;
-        _length = length;
-        _propertyName = propertyName;
-        _propertyType = propertyType;
-    }
-
-    public string DisplayText => _propertyType == PropertyType.Positional 
-        ? $"Navigate to argument at position {_propertyName}" 
-        : $"Navigate to '{_propertyName}' argument";
+    public string DisplayText => propertyType == PropertyType.Positional 
+        ? $"Navigate to argument at position {propertyName}" 
+        : $"Navigate to '{propertyName}' argument";
 
     public string IconAutomationText => null;
 
@@ -453,12 +460,12 @@ internal class NavigateToArgumentAction : ISuggestedAction
 
     public void Invoke(CancellationToken cancellationToken)
     {
-        var snapshot = _textView.TextBuffer.CurrentSnapshot;
-        var span = new SnapshotSpan(snapshot, _position, _length);
+        var snapshot = textView.TextBuffer.CurrentSnapshot;
+        var span = new SnapshotSpan(snapshot, position, length);
         
-        _textView.Caret.MoveTo(span.Start);
-        _textView.ViewScroller.EnsureSpanVisible(span);
-        _textView.Selection.Select(span, false);
+        textView.Caret.MoveTo(span.Start);
+        textView.ViewScroller.EnsureSpanVisible(span);
+        textView.Selection.Select(span, false);
     }
 
     public bool TryGetTelemetryId(out Guid telemetryId)

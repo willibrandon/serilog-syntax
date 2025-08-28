@@ -79,6 +79,7 @@ public class SerilogBraceMatcherTests
                     i++; // Skip escaped brace
                     continue;
                 }
+
                 stack.Push(i);
             }
             else if (text[i] == '}')
@@ -88,6 +89,7 @@ public class SerilogBraceMatcherTests
                     i++; // Skip escaped brace
                     continue;
                 }
+
                 if (stack.Count > 0)
                 {
                     var openPos = stack.Pop();
@@ -96,7 +98,7 @@ public class SerilogBraceMatcherTests
             }
         }
         
-        return pairs.OrderBy(p => p.Item1).ToList();
+        return [.. pairs.OrderBy(p => p.Item1)];
     }
 
     private bool IsSerilogCall(string text)
