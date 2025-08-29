@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.Text.Classification;
+using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Utilities;
 using System.ComponentModel.Composition;
 using System.Windows.Media;
@@ -121,5 +122,23 @@ internal sealed class SerilogAlignmentFormat : ClassificationFormatDefinition
     {
         DisplayName = "Serilog Alignment";
         ForegroundColor = Color.FromRgb(0xDC, 0x26, 0x26); // Muted red (#DC2626) - 5.2:1 dark, 4.5:1 light contrast
+    }
+}
+
+/// <summary>
+/// Defines the visual format for brace matching highlight in Serilog templates.
+/// </summary>
+[Export(typeof(EditorFormatDefinition))]
+[Name("bracehighlight")]
+[UserVisible(true)]
+internal sealed class SerilogBraceHighlightFormat : MarkerFormatDefinition
+{
+    public SerilogBraceHighlightFormat()
+    {
+        DisplayName = "Serilog Brace Highlight";
+        BackgroundColor = Color.FromRgb(0x21, 0x96, 0xF3); // Light blue background
+        ForegroundColor = Colors.White;
+        Border = new Pen(Brushes.DarkBlue, 1.0);
+        ZOrder = 5;
     }
 }
