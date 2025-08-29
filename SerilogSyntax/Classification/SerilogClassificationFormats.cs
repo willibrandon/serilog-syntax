@@ -136,9 +136,11 @@ internal sealed class SerilogBraceHighlightFormat : MarkerFormatDefinition
     public SerilogBraceHighlightFormat()
     {
         DisplayName = "Serilog Brace Highlight";
-        BackgroundColor = Color.FromRgb(0x21, 0x96, 0xF3); // Light blue background
-        ForegroundColor = Colors.White;
-        Border = new Pen(Brushes.DarkBlue, 1.0);
+        // Don't use a solid background - just use a border for subtle highlighting
+        // This follows VS's built-in brace matching approach
+        ForegroundColor = Color.FromRgb(0x66, 0x66, 0x66); // Dark gray border
+        BackgroundCustomizable = true;
+        ForegroundCustomizable = true;
         ZOrder = 5;
     }
 }
