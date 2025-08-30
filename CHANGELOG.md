@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-08-29
+
+### Added
+- ESC key dismissal for brace matching highlights
+  - Press ESC to temporarily dismiss brace highlights
+  - Highlights automatically restore when cursor moves away and returns
+
+### Changed
+- Improved brace highlight appearance
+  - Changed from filled blue background to subtle gray border
+  - Better visibility across different themes
+  - Made colors fully customizable in VS settings
+
+### Fixed
+- Added proper disposal patterns for view event handlers
+- Improved state management for brace matching
+
 ## [0.1.0] - 2025-08-28
 
 ### Added

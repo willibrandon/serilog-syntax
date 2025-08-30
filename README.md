@@ -36,6 +36,7 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 ### 🔍 Brace Matching
 - Highlight matching braces when cursor is positioned on `{` or `}`
 - Visual indication of brace pairs in complex templates
+- Press **ESC** to temporarily dismiss highlights
 - Helps identify mismatched or nested braces
 
 ## Installation
