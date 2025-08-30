@@ -50,6 +50,7 @@
     <Compile Include="Classification\SerilogClassificationTypes.cs" />
     <Compile Include="Classification\SerilogClassifier.cs" />
     <Compile Include="Classification\SerilogClassifierProvider.cs" />
+    <Compile Include="Diagnostics\DiagnosticLogger.cs" />
     <Compile Include="Navigation\SerilogNavigationProvider.cs" />
     <Compile Include="Parsing\TemplateParser.cs" />
     <Compile Include="Parsing\TemplateProperty.cs" />

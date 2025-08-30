@@ -15,6 +15,7 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 - **Positional parameters** highlighted in dark violet: `{0}`, `{1}`
 - **Property braces** highlighted in purple for structure
 - **Multi-line verbatim strings** fully supported with proper highlighting across lines
+- **C# 11 raw string literals** supported with `"""` delimiters for complex templates
 
 ### 🔗 Smart Detection
 - Works with any logger variable name (not just `_logger` or `log`)
@@ -129,6 +130,14 @@ logger.LogInformation(@"Processing report:
     User: {UserName}
     Department: {Department}
     Generated: {Timestamp:yyyy-MM-dd}", userName, dept, DateTime.Now);
+
+// C# 11 raw string literals (no escaping needed for quotes)
+logger.LogInformation("""
+    Processing record:
+    ID: {RecordId}
+    Status: {Status}
+    User: {@User}
+    """, recordId, status, user);
 
 // Configuration templates
 Log.Logger = new LoggerConfiguration()

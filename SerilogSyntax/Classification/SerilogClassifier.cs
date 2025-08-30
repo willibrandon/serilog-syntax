@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
+using SerilogSyntax.Diagnostics;
 using SerilogSyntax.Parsing;
 using SerilogSyntax.Utilities;
 using System;
@@ -13,6 +14,29 @@ namespace SerilogSyntax.Classification;
 /// Provides syntax classification for Serilog message templates within string literals.
 /// Identifies and classifies properties, operators, format specifiers, and other template elements.
 /// </summary>
+/// <remarks>
+/// ARCHITECTURE: This classifier uses a dual-approach for handling string literals:
+/// 
+/// 1. SINGLE-LINE STRINGS (regular, verbatim, and single-line raw strings):
+///    - Detected via FindStringLiteral() 
+///    - Parsed completely within TryParseRawStringLiteral/TryParseVerbatimString/TryParseRegularString
+///    - Properties extracted and classified immediately
+/// 
+/// 2. MULTI-LINE STRINGS (multi-line verbatim and raw strings):
+///    - Detected via IsInsideVerbatimString() and IsInsideRawStringLiteral()
+///    - Uses line-by-line scanning because VS may only provide partial spans during editing
+///    - Scans backward to find opening delimiters, forward to find closing
+///    - Results cached in _rawStringRegionCache for performance
+/// 
+/// This dual approach is necessary because Visual Studio's incremental parsing may provide
+/// only the currently edited line, not the complete multi-line string context.
+/// 
+/// PERFORMANCE OPTIMIZATIONS:
+/// - Template parsing results cached in _templateCache
+/// - Classification spans cached in _classificationCache
+/// - Raw string region detection cached in _rawStringRegionCache
+/// - Smart cache invalidation only clears affected lines based on change type
+/// </remarks>
 internal class SerilogClassifier : IClassifier, IDisposable
 {
     private readonly IClassificationTypeRegistryService _classificationRegistry;
@@ -28,11 +52,17 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private readonly IClassificationType _positionalIndexType;
     private readonly IClassificationType _alignmentType;
 
+    // Constants for magic numbers
+    private const int MaxLookbackLines = 20;
+    private const int MaxLookforwardLines = 50;
+    private const int MaxVerbatimStringLookbackLines = 10;
+    
     // Performance optimizations
     private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new();
     private readonly object _cacheLock = new();
     private ITextSnapshot _lastSnapshot;
     private readonly ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>> _classificationCache = new();
+    private readonly ConcurrentDictionary<int, bool> _rawStringRegionCache = new(); // Line number -> is inside raw string
 
 
     /// <summary>
@@ -68,6 +98,10 @@ internal class SerilogClassifier : IClassifier, IDisposable
     {
         // Only invalidate cache for changed spans
         var changedSpans = new List<SnapshotSpan>();
+        var snapshot = e.After;
+        
+        // Smart invalidation for raw string region cache
+        var linesToInvalidate = new HashSet<int>();
         
         foreach (var change in e.Changes)
         {
@@ -76,23 +110,68 @@ internal class SerilogClassifier : IClassifier, IDisposable
             var end = start + change.NewLength;
             
             // Extend to line boundaries for context
-            var startLine = e.After.GetLineFromPosition(start);
-            var endLine = e.After.GetLineFromPosition(Math.Min(end, e.After.Length - 1));
+            var startLine = snapshot.GetLineFromPosition(start);
+            var endLine = snapshot.GetLineFromPosition(Math.Min(end, snapshot.Length - 1));
             
             var affectedSpan = new SnapshotSpan(
                 startLine.Start,
                 endLine.EndIncludingLineBreak);
             
             changedSpans.Add(affectedSpan);
+            
+            // Smart cache invalidation: check if this change could affect raw string boundaries
+            var startLineNumber = startLine.LineNumber;
+            var endLineNumber = endLine.LineNumber;
+            
+            // Check each affected line for raw string delimiters
+            bool hasRawStringDelimiters = false;
+            for (int lineNum = startLineNumber; lineNum <= endLineNumber; lineNum++)
+            {
+                if (lineNum < snapshot.LineCount)
+                {
+                    var lineText = snapshot.GetLineFromLineNumber(lineNum).GetText();
+                    if (lineText.Contains("\"\"\""))
+                    {
+                        hasRawStringDelimiters = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (hasRawStringDelimiters)
+            {
+                // This change involves raw string delimiters - need wider invalidation
+                int invalidateStart = Math.Max(0, startLineNumber - MaxLookbackLines);
+                int invalidateEnd = Math.Min(snapshot.LineCount - 1, endLineNumber + MaxLookforwardLines);
+                
+                for (int i = invalidateStart; i <= invalidateEnd; i++)
+                {
+                    linesToInvalidate.Add(i);
+                }
+            }
+            else
+            {
+                // Normal change - only invalidate the changed lines and a small window
+                for (int i = Math.Max(0, startLineNumber - 2); i <= Math.Min(snapshot.LineCount - 1, endLineNumber + 2); i++)
+                {
+                    linesToInvalidate.Add(i);
+                }
+            }
         }
         
-        // Remove only affected spans from cache
+        // Remove only affected spans from classification cache
         InvalidateCacheForSpans(changedSpans);
+        
+        // Invalidate raw string region cache for affected lines
+        foreach (var lineNum in linesToInvalidate)
+        {
+            _rawStringRegionCache.TryRemove(lineNum, out _);
+        }
         
         // Update snapshot reference
         lock (_cacheLock)
         {
-            _lastSnapshot = e.After;
+            _lastSnapshot = snapshot;
         }
         
         // Raise classification changed for affected areas only
@@ -143,6 +222,11 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// <returns>A list of classification spans for Serilog template elements within the given span.</returns>
     public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span)
     {
+        // Initialize diagnostics on first call
+#if DEBUG
+        DiagnosticLogger.Initialize();
+#endif
+        
         // Check cache first - avoid expensive operations if possible
         if (_classificationCache.TryGetValue(span, out List<ClassificationSpan> cachedResult))
         {
@@ -156,16 +240,40 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // Get the text from the span
             string text = span.GetText();
             
+#if DEBUG
+            // Only log if processing raw strings (useful for debugging)
+            if (text.Contains("\"\"\""))
+            {
+                var currentLine = span.Snapshot.GetLineFromPosition(span.Start);
+                DiagnosticLogger.Log($"Processing raw string at line {currentLine.LineNumber}");
+            }
+#endif
+            
             // Early exit if no Serilog calls detected - avoids expensive regex on irrelevant text
             if (string.IsNullOrWhiteSpace(text) || !SerilogCallDetector.IsSerilogCall(text))
             {
-                // Check if we might be inside a multi-line verbatim string
+                // Check if we might be inside a multi-line string
                 if (text.Contains("{") && text.Contains("}"))
                 {
-                    // Look backwards to see if we're inside an unclosed verbatim string
+                    // Check if we're inside a multi-line string
+                    
+                    // Look backwards to see if we're inside an unclosed verbatim or raw string
+                    bool insideString = false;
+                    
                     if (IsInsideVerbatimString(span))
                     {
-                        // We're inside a verbatim string! Parse the current span for properties
+                        insideString = true;
+                        // Inside verbatim string
+                    }
+                    else if (IsInsideRawStringLiteral(span))
+                    {
+                        insideString = true;
+                        // Inside raw string literal
+                    }
+                    
+                    if (insideString)
+                    {
+                        // We're inside a multi-line string! Parse the current span for properties
                         var properties = GetCachedTemplateProperties(text);
                         
                         // Create classifications for properties in this span
@@ -193,7 +301,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 
                 if (stringLiteral.HasValue)
                 {
-                    var (literalStart, literalEnd, templateText, isVerbatim) = stringLiteral.Value;
+                    var (literalStart, literalEnd, templateText, isVerbatim, quoteCount) = stringLiteral.Value;
                     
                     // Use cached template parsing if available
                     var properties = GetCachedTemplateProperties(templateText);
@@ -202,8 +310,10 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     foreach (var property in properties)
                     {
                         // Adjust indices to account for the string literal position
-                        // Verbatim strings (@"...") need +2, regular strings ("...") need +1
-                        int offsetInSnapshot = literalStart + (isVerbatim ? 2 : 1);
+                        // Raw strings ("""...""") need +quoteCount
+                        // Verbatim strings (@"...") need +2
+                        // Regular strings ("...") need +1
+                        int offsetInSnapshot = literalStart + (quoteCount > 0 ? quoteCount : (isVerbatim ? 2 : 1));
                         
                         AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
                     }
@@ -323,8 +433,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// <param name="text">The text to search in.</param>
     /// <param name="startIndex">The index to start searching from.</param>
     /// <param name="spanStart">The absolute position of the span start in the document.</param>
-    /// <returns>A tuple containing the start position, end position, content, and whether it's a verbatim string, or null if not found.</returns>
-    private (int start, int end, string text, bool isVerbatim)? FindStringLiteral(string text, int startIndex, int spanStart)
+    /// <returns>A tuple containing the start position, end position, content, whether it's a verbatim string, and the quote count for raw strings, or null if not found.</returns>
+    private (int start, int end, string text, bool isVerbatim, int quoteCount)? FindStringLiteral(string text, int startIndex, int spanStart)
     {
         // Look for string literal after Serilog method call
         int parenDepth = 1;
@@ -341,9 +451,26 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // Check for different string literal types
             if (TryParseStringLiteral(text, startIndex, out var result))
             {
-                // Determine if it's a verbatim string
+                // Determine string type
                 bool isVerbatim = startIndex < text.Length - 1 && text[startIndex] == '@' && text[startIndex + 1] == '"';
-                return (spanStart + result.Start, spanStart + result.End, result.Content, isVerbatim);
+                
+                // Check if it's a raw string literal
+                int quoteCount = 0;
+                if (!isVerbatim && startIndex < text.Length && text[startIndex] == '"')
+                {
+                    // Count consecutive quotes to detect raw strings
+                    int pos = startIndex;
+                    while (pos < text.Length && text[pos] == '"')
+                    {
+                        quoteCount++;
+                        pos++;
+                    }
+                    // If less than 3 quotes, it's a regular string, not raw
+                    if (quoteCount < 3)
+                        quoteCount = 0;
+                }
+                
+                return (spanStart + result.Start, spanStart + result.End, result.Content, isVerbatim, quoteCount);
             }
             
             // Track parenthesis depth
@@ -373,7 +500,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
     {
         result = default;
         
-        // Check for verbatim string @"..."
+        // Check for verbatim string @"..." FIRST
         if (startIndex < text.Length - 1 && text[startIndex] == '@' && text[startIndex + 1] == '"')
         {
             return TryParseVerbatimString(text, startIndex, out result);
@@ -386,10 +513,28 @@ internal class SerilogClassifier : IClassifier, IDisposable
             return false;
         }
         
-        // Check for regular string "..."
+        // Check for quotes (could be regular or raw string)
         if (startIndex < text.Length && text[startIndex] == '"')
         {
-            return TryParseRegularString(text, startIndex, out result);
+            // Count quotes to determine if it's raw string (3+) or regular (1)
+            int quoteCount = 0;
+            int pos = startIndex;
+            while (pos < text.Length && text[pos] == '"')
+            {
+                quoteCount++;
+                pos++;
+            }
+            
+            if (quoteCount >= 3)
+            {
+                // Raw string literal
+                return TryParseRawStringLiteral(text, startIndex, out result);
+            }
+            else
+            {
+                // Regular string literal
+                return TryParseRegularString(text, startIndex, out result);
+            }
         }
         
         return false;
@@ -480,6 +625,76 @@ internal class SerilogClassifier : IClassifier, IDisposable
     }
 
     /// <summary>
+    /// Attempts to parse a raw string literal ("""...""").
+    /// </summary>
+    /// <param name="text">The text to parse.</param>
+    /// <param name="startIndex">The starting index in the text.</param>
+    /// <param name="result">The parsed result containing start, end, and content.</param>
+    /// <returns>True if a raw string literal was successfully parsed; otherwise, false.</returns>
+    private bool TryParseRawStringLiteral(string text, int startIndex, out (int Start, int End, string Content) result)
+    {
+        result = default;
+        
+        // Count opening quotes (minimum 3 for raw string)
+        int quoteCount = 0;
+        int pos = startIndex;
+        while (pos < text.Length && text[pos] == '"')
+        {
+            quoteCount++;
+            pos++;
+        }
+        
+        if (quoteCount < 3)
+        {
+            return false; // Not a raw string literal
+        }
+        
+        // Find matching closing quotes
+        int contentStart = pos;
+        int searchPos = pos;
+        
+        while (searchPos < text.Length)
+        {
+            if (text[searchPos] == '"')
+            {
+                // Count consecutive quotes
+                int closeCount = 0;
+                int closePos = searchPos;
+                while (closePos < text.Length && text[closePos] == '"')
+                {
+                    closeCount++;
+                    closePos++;
+                }
+                
+                if (closeCount >= quoteCount)
+                {
+                    // Found matching closing quotes
+                    result = (startIndex, searchPos + quoteCount - 1, 
+                             text.Substring(contentStart, searchPos - contentStart));
+                    return true;
+                }
+                
+                // Skip these quotes and continue
+                searchPos = closePos;
+            }
+            else
+            {
+                searchPos++;
+            }
+        }
+        
+        // Incomplete raw string - return what we have for error recovery
+        if (searchPos > contentStart)
+        {
+            result = (startIndex, text.Length - 1, 
+                     text.Substring(contentStart, text.Length - contentStart));
+            return true;
+        }
+        
+        return false;
+    }
+
+    /// <summary>
     /// Checks if the given span is inside an unclosed verbatim string literal.
     /// </summary>
     /// <param name="span">The span to check.</param>
@@ -492,8 +707,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
             var currentLine = snapshot.GetLineFromPosition(span.Start);
             var lineNumber = currentLine.LineNumber;
             
-            // Look backwards up to 10 lines to find an unclosed verbatim string
-            for (int i = lineNumber - 1; i >= Math.Max(0, lineNumber - 10); i--)
+            // Look backwards up to MaxVerbatimStringLookbackLines to find an unclosed verbatim string
+            for (int i = lineNumber - 1; i >= Math.Max(0, lineNumber - MaxVerbatimStringLookbackLines); i--)
             {
                 var line = snapshot.GetLineFromLineNumber(i);
                 var lineText = line.GetText();
@@ -549,6 +764,199 @@ internal class SerilogClassifier : IClassifier, IDisposable
     }
 
     /// <summary>
+    /// Checks if the given span is inside an unclosed raw string literal.
+    /// Uses caching to avoid repeated expensive lookups for the same line numbers.
+    /// </summary>
+    /// <param name="span">The span to check.</param>
+    /// <returns>True if the span is inside a raw string; otherwise, false.</returns>
+    private bool IsInsideRawStringLiteral(SnapshotSpan span)
+    {
+        var snapshot = span.Snapshot;
+        var currentLine = snapshot.GetLineFromPosition(span.Start);
+        var lineNumber = currentLine.LineNumber;
+        
+        try
+        {
+            
+            // Check cache first
+            if (_rawStringRegionCache.TryGetValue(lineNumber, out bool cachedResult))
+            {
+                return cachedResult;
+            }
+            
+            // Look at current line and backwards to find potential raw string starts
+            // Start from current line to handle case where raw string starts on this line
+            for (int i = lineNumber; i >= Math.Max(0, lineNumber - MaxLookbackLines); i--)
+            {
+                var line = snapshot.GetLineFromLineNumber(i);
+                var lineText = line.GetText();
+                
+                // Skip lines without triple quotes for performance
+                if (!lineText.Contains("\"\"\""))
+                    continue;
+                
+                // Find all occurrences of """ in this line
+                int index = 0;
+                while ((index = lineText.IndexOf("\"\"\"", index)) != -1)
+                {
+                    // Count quotes at this position
+                    int quoteCount = 0;
+                    int pos = index;
+                    while (pos < lineText.Length && lineText[pos] == '"')
+                    {
+                        quoteCount++;
+                        pos++;
+                    }
+                    
+                    if (quoteCount >= 3)
+                    {
+                        // Check if this could be a Serilog raw string
+                        // The line must contain a Serilog call before the quotes
+                        var textBeforeQuotes = lineText.Substring(0, index);
+                        bool isSerilogCall = index > 0 && SerilogCallDetector.IsSerilogCall(textBeforeQuotes);
+                        
+                        if (isSerilogCall)
+                        {
+                            // Check where this raw string closes
+                            int closingLine = GetRawStringClosingLine(snapshot, i, quoteCount);
+                            
+                            // If closing line is -1 (not closed) or after current line, we're inside
+                            if (closingLine == -1 || closingLine > lineNumber)
+                            {
+                                _rawStringRegionCache.TryAdd(lineNumber, true);
+                                return true;
+                            }
+                        }
+                    }
+                    
+                    index = pos;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+#if DEBUG
+            DiagnosticLogger.LogException(ex, "IsInsideRawStringLiteral");
+#else
+            _ = ex; // Suppress warning in Release
+#endif
+        }
+        
+        _rawStringRegionCache.TryAdd(lineNumber, false);
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a raw string literal starting at the given line is closed and returns the closing line number.
+    /// </summary>
+    /// <param name="snapshot">The text snapshot.</param>
+    /// <param name="startLineNumber">The line number where the raw string starts.</param>
+    /// <param name="quoteCount">The number of opening quotes.</param>
+    /// <returns>The line number where the raw string closes, or -1 if not closed.</returns>
+    private int GetRawStringClosingLine(ITextSnapshot snapshot, int startLineNumber, int quoteCount)
+    {
+        
+        var startLine = snapshot.GetLineFromLineNumber(startLineNumber);
+        var startLineText = startLine.GetText();
+        
+        // Find the opening quotes position
+        int openQuoteIndex = startLineText.IndexOf(new string('"', quoteCount));
+        if (openQuoteIndex < 0)
+        {
+            // Could not find opening quotes - assume closed on same line
+            return startLineNumber;
+        }
+        
+        // Check if there's content after the opening quotes on the same line
+        int afterOpenQuotes = openQuoteIndex + quoteCount;
+        string afterOpen = startLineText.Substring(afterOpenQuotes).Trim();
+        
+        
+        // If there's nothing after the opening quotes, it's a multi-line raw string
+        if (string.IsNullOrWhiteSpace(afterOpen))
+        {
+            // Multi-line raw string (nothing after opening quotes)
+            
+            // Look for closing quotes on subsequent lines
+            for (int i = startLineNumber + 1; i < Math.Min(snapshot.LineCount, startLineNumber + MaxLookforwardLines); i++)
+            {
+                var line = snapshot.GetLineFromLineNumber(i);
+                var lineText = line.GetText();
+                
+                // Find the first non-whitespace position for proper indentation handling
+                int nonWhitespaceIndex = 0;
+                while (nonWhitespaceIndex < lineText.Length && char.IsWhiteSpace(lineText[nonWhitespaceIndex]))
+                    nonWhitespaceIndex++;
+                
+                // Check if we have enough room for the closing quotes
+                if (nonWhitespaceIndex + quoteCount <= lineText.Length)
+                {
+                    // Check for exact quote match at this position
+                    bool isClosing = true;
+                    for (int q = 0; q < quoteCount; q++)
+                    {
+                        if (lineText[nonWhitespaceIndex + q] != '"')
+                        {
+                            isClosing = false;
+                            break;
+                        }
+                    }
+                    
+                    if (isClosing)
+                    {
+                        // Verify no extra quotes (that would mean it's not the closing)
+                        if (nonWhitespaceIndex + quoteCount < lineText.Length && 
+                            lineText[nonWhitespaceIndex + quoteCount] == '"')
+                            continue;
+                        
+                        // For multi-line raw strings, closing quotes followed by comma and parameters IS valid
+                        // e.g., """, recordId, status); is a valid closing
+                        return i; // Found the closing line
+                    }
+                }
+            }
+            
+            // No closing quotes found - raw string is unclosed
+            return -1;
+        }
+        else
+        {
+            // Single-line raw string - look for closing quotes on the same line
+            
+            // Look for closing quotes after the content
+            int searchPos = afterOpenQuotes;
+            while (searchPos <= startLineText.Length - quoteCount)
+            {
+                bool foundClosing = true;
+                for (int k = 0; k < quoteCount; k++)
+                {
+                    if (searchPos + k >= startLineText.Length || startLineText[searchPos + k] != '"')
+                    {
+                        foundClosing = false;
+                        break;
+                    }
+                }
+                
+                if (foundClosing)
+                {
+                    // Check if there are more quotes (would mean it's not the closing)
+                    if (searchPos + quoteCount < startLineText.Length && startLineText[searchPos + quoteCount] == '"')
+                    {
+                        searchPos++;
+                        continue;
+                    }
+                    
+                    return startLineNumber; // Closed on same line
+                }
+                searchPos++;
+            }
+            
+            // No closing quotes found on same line - raw string is unclosed
+            return -1;
+        }
+    }
+
+    /// <summary>
     /// Disposes resources and unsubscribes from buffer events.
     /// </summary>
     public void Dispose()
@@ -559,5 +967,6 @@ internal class SerilogClassifier : IClassifier, IDisposable
         // Clear caches
         _templateCache.Clear();
         _classificationCache.Clear();
+        _rawStringRegionCache.Clear();
     }
 }

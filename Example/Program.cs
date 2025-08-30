@@ -66,6 +66,7 @@ public class ExampleService(ILogger<ExampleService> logger)
         await DestructuringExamples();
         await FormattingExamples();
         await VerbatimStringExamples();
+        await RawStringLiteralExamples();
         await ErrorHandlingExamples();
         await PerformanceLoggingExamples();
     }
@@ -256,6 +257,75 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
 ===============================================
 ", appName, version, env, userName, userId, sessionId, DateTime.Now);
 
+        await Task.Delay(100);
+    }
+
+    private async Task RawStringLiteralExamples()
+    {
+        logger.LogInformation("=== Raw String Literal Tests (C# 11+) ===");
+        
+        // 1. Single-line raw string literal
+        logger.LogInformation("""User {UserId} logged in at {Timestamp:HH:mm:ss}""", 42, DateTime.Now);
+        
+        // 2. Multi-line raw string literal
+        var recordId = "REC-001";
+        var status = "Active";
+        logger.LogInformation("""
+            Processing record:
+            ID: {RecordId}
+            Status: {Status}
+            Timestamp: {Timestamp:yyyy-MM-dd}
+            """, recordId, status, DateTime.Now);
+        
+        // 3. Raw string with embedded quotes (no escaping needed)
+        var configValue = "production";
+        logger.LogInformation("""Configuration value "AppMode" is set to "{Value}" """, configValue);
+        
+        // 4. Raw string with custom delimiter (4+ quotes)
+        var data = "test-data";
+        logger.LogInformation(""""
+            Template with """ inside: {Data}
+            This allows literal triple quotes in the string
+            """", data);
+        
+        // 5. Complex multi-line raw string with various property types
+        var appName = "ExampleApp";
+        var version = "2.0.0";
+        var environment = "Production";
+        var userName = "Admin";
+        var userId = 1;
+        var sessionId = Guid.NewGuid();
+        
+        logger.LogInformation("""
+            ===============================================
+            Application: {AppName}
+            Version: {Version}
+            Environment: {Environment}
+            ===============================================
+            User: {UserName} (ID: {UserId})
+            Session: {SessionId}
+            Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
+            ===============================================
+            """, appName, version, environment, userName, userId, sessionId, DateTime.Now);
+        
+        // 6. Raw string with positional parameters and formatting
+        logger.LogInformation("""
+            Database Query Results:
+            Query: SELECT * FROM Users WHERE Id = {0}
+            Rows affected: {1,5}
+            Execution time: {2:F2}ms
+            """, userId, 42, 123.456);
+        
+        // 7. Raw string with destructuring and stringification
+        var config = new { Mode = "Debug", Timeout = 30 };
+        var settings = new Dictionary<string, object> { ["key1"] = "value1", ["key2"] = 42 };
+        
+        logger.LogInformation("""
+            Configuration loaded:
+            Config: {@Config}
+            Settings: {$Settings}
+            """, config, settings);
+        
         await Task.Delay(100);
     }
 
