@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-08-30
+
+### Added
+- Full support for C# 11 raw string literals (`"""..."""`)
+  - Single-line and multi-line raw string templates
+  - Handles custom delimiter counts (4+ quotes)
+  - Proper indentation handling for closing quotes
+  - Properties highlighted across all lines in multi-line raw strings
+- Smart cache invalidation system
+  - Detects when changes affect raw string boundaries
+  - Minimal invalidation for normal edits (±2 lines)
+  - Wider invalidation only when raw string delimiters are modified
+  - Measured 268x-510x performance improvement with caching
+- Mock test infrastructure for VS components
+  - MockTextBuffer, MockTextSnapshot for testing without VS
+  - MockClassificationTypeRegistry for type registration
+  - Enables unit testing of VS integration code
+- Performance tests with timing validation
+  - Tests verify cache effectiveness with actual measurements
+  - Smart invalidation test confirms minimal overhead
+
+### Changed
+- Improved raw string detection algorithm
+  - Now checks current line in addition to previous lines
+  - Handles edge cases where raw string starts on the queried line
+- Enhanced diagnostic logging (debug builds only)
+  - Synchronous implementation to prevent VS hangs
+  - Automatic cleanup keeps only 5 most recent log files
+
 ## [0.2.0] - 2025-08-30
 
 ### Added
@@ -87,6 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.3.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.3.0
 [0.2.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.2.0
 [0.1.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.1.1
 [0.1.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.1.0

@@ -88,6 +88,7 @@ To test the extension, press F5 in Visual Studio which will launch a new VS inst
 - Uses Visual Studio SDK v17.0.32112.339
 - Configured for Visual Studio Community 2022 (17.0-18.0)
 - Fully functional with syntax highlighting, navigation, and brace matching
+- Supports C# 11 raw string literals ("""...""")
 
 ## Implementation Overview
 
@@ -138,6 +139,6 @@ The extension includes these components:
 ### Performance Considerations
 - LRU cache for parsed templates (10x improvement for repeated templates)
 - Pre-check optimization before regex matching (8x faster for non-Serilog code)
-- Incremental cache invalidation for changed spans only
-- Detection of multi-line verbatim strings without full document parsing
+- Smart cache invalidation that only clears affected lines (268x-510x speedup)
+- Detection of multi-line strings (verbatim and raw) without full document parsing
 - Classes over structs for better .NET Framework performance

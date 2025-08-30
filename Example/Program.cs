@@ -107,6 +107,17 @@ Multiple lines are supported in verbatim strings
 With properties like {UserId} and {@Order}
 Even with ""escaped quotes"" in the template", 
             filePath, userId, order);
+        
+        // Raw string literal with properties (C# 11 """...""" support)
+        var recordId = "REC-2024";
+        var status = "Processing";
+        logger.LogInformation("""
+            Raw String Report:
+            Record: {RecordId} | Status: {Status,-12}
+            User: {UserName} (ID: {UserId})
+            Order: {@Order}
+            Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
+            """, recordId, status, userName, userId, order, timestamp);
 
         await Task.Delay(100);
     }
