@@ -39,6 +39,21 @@ namespace SerilogSyntax.Tagging
     /// </summary>
     internal sealed class SerilogBraceMatcher : ITagger<TextMarkerTag>, IDisposable
     {
+        /// <summary>
+        /// Maximum number of lines to search backward when detecting multi-line string contexts.
+        /// </summary>
+        private const int MaxLookbackLines = 20;
+        
+        /// <summary>
+        /// Maximum number of lines to search forward when detecting unclosed strings.
+        /// </summary>
+        private const int MaxLookforwardLines = 50;
+        
+        /// <summary>
+        /// Maximum character distance to search for matching braces within a property.
+        /// </summary>
+        private const int MaxPropertyLength = 200;
+
         private readonly ITextView _view;
         private readonly ITextBuffer _buffer;
         private readonly SerilogBraceHighlightState _state;
@@ -61,6 +76,9 @@ namespace SerilogSyntax.Tagging
             _view = view;
             _buffer = buffer;
             _state = SerilogBraceHighlightState.GetOrCreate(view);
+
+            // Initialize current position
+            _currentChar = view.Caret.Position.Point.GetPoint(buffer, view.Caret.Position.Affinity);
 
             _view.Caret.PositionChanged += CaretPositionChanged;
             _view.LayoutChanged += ViewLayoutChanged;
@@ -109,6 +127,237 @@ namespace SerilogSyntax.Tagging
         }
 
     /// <summary>
+    /// Checks if the cursor is inside a multi-line string (verbatim or raw).
+    /// </summary>
+    /// <remarks>
+    /// This method searches backward up to <see cref="MaxLookbackLines"/> lines (20 by default)
+    /// and forward up to <see cref="MaxLookforwardLines"/> lines (50 by default) to find
+    /// unclosed string delimiters, balancing performance with accuracy.
+    /// </remarks>
+    /// <param name="point">The snapshot point to check.</param>
+    /// <returns>True if inside a multi-line string; otherwise, false.</returns>
+    private bool IsInsideMultiLineString(SnapshotPoint point)
+    {
+        var line = point.GetContainingLine();
+        var snapshot = point.Snapshot;
+        
+        // Look backwards for unclosed verbatim (@") or raw string (""")
+        for (int i = line.LineNumber; i >= Math.Max(0, line.LineNumber - MaxLookbackLines); i--)
+        {
+            var checkLine = snapshot.GetLineFromLineNumber(i);
+            var lineText = checkLine.GetText();
+            
+            // Check for raw string opener
+            if (lineText.Contains("\"\"\""))
+            {
+                // Check if it's a Serilog call
+                if (SerilogCallDetector.IsSerilogCall(lineText))
+                {
+                    // Look forward to see if it's closed
+                    for (int j = i + 1; j < Math.Min(snapshot.LineCount, i + MaxLookforwardLines); j++)
+                    {
+                        var forwardLine = snapshot.GetLineFromLineNumber(j);
+                        if (forwardLine.GetText().TrimStart().StartsWith("\"\"\""))
+                        {
+                            // Found closing, check if we're between them
+                            if (line.LineNumber > i && line.LineNumber < j)
+                                return true;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Check for verbatim string opener
+            if (lineText.Contains("@\""))
+            {
+                var atIndex = lineText.IndexOf("@\"");
+                if (atIndex >= 0)
+                {
+                    // Check if this line OR a previous line has a Serilog call
+                    bool hasSerilogCall = SerilogCallDetector.IsSerilogCall(lineText);
+                    if (!hasSerilogCall && i > 0)
+                    {
+                        // Check previous line for Serilog call
+                        var prevLine = snapshot.GetLineFromLineNumber(i - 1);
+                        hasSerilogCall = SerilogCallDetector.IsSerilogCall(prevLine.GetText());
+                    }
+                    
+                    if (hasSerilogCall)
+                    {
+                        // For verbatim strings, we need to track if it's closed
+                        // by looking for an unescaped quote
+                        bool stringClosed = false;
+                        
+                        // First check if it closes on the same line
+                        var restOfLine = lineText.Substring(atIndex + 2);
+                        int pos = 0;
+                        while (pos < restOfLine.Length)
+                        {
+                            if (restOfLine[pos] == '"')
+                            {
+                                // Check if it's escaped (followed by another quote)
+                                if (pos + 1 < restOfLine.Length && restOfLine[pos + 1] == '"')
+                                {
+                                    pos += 2; // Skip escaped quote pair
+                                }
+                                else
+                                {
+                                    // Found closing quote on same line
+                                    stringClosed = true;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                pos++;
+                            }
+                        }
+                        
+                        if (!stringClosed)
+                        {
+                            // String didn't close on this line, look forward for closing
+                            for (int j = i + 1; j < Math.Min(snapshot.LineCount, i + MaxLookforwardLines); j++)
+                            {
+                                var forwardLine = snapshot.GetLineFromLineNumber(j);
+                                var forwardText = forwardLine.GetText();
+                                
+                                // Look for closing quote in this line
+                                pos = 0;
+                                while (pos < forwardText.Length)
+                                {
+                                    if (forwardText[pos] == '"')
+                                    {
+                                        // Check if escaped
+                                        if (pos + 1 < forwardText.Length && forwardText[pos + 1] == '"')
+                                        {
+                                            pos += 2; // Skip escaped pair
+                                        }
+                                        else
+                                        {
+                                            // Found unescaped quote - this closes the string
+                                            stringClosed = true;
+                                            
+                                            // Check if we're between opening and closing
+                                            if (line.LineNumber > i && line.LineNumber <= j)
+                                                return true;
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        pos++;
+                                    }
+                                }
+                                
+                                if (stringClosed)
+                                    break;
+                            }
+                            
+                            // If still not closed and we're after the opening line
+                            if (!stringClosed && line.LineNumber > i)
+                                return true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Finds matching braces across line boundaries.
+    /// </summary>
+    /// <remarks>
+    /// Searches are limited to <see cref="MaxPropertyLength"/> characters (200 by default)
+    /// in either direction from the starting brace to prevent performance issues with
+    /// malformed or extremely long properties.
+    /// </remarks>
+    /// <param name="point">The snapshot point at the brace.</param>
+    /// <returns>A tuple of open and close brace points, or null if no match found.</returns>
+    private (SnapshotPoint? open, SnapshotPoint? close)? FindMultiLineBraceMatch(SnapshotPoint point)
+    {
+        var snapshot = point.Snapshot;
+        var currentChar = point.GetChar();
+        
+        if (currentChar == '{')
+        {
+            // Find closing brace, potentially on another line
+            int braceCount = 1;
+            for (int pos = point.Position + 1; pos < snapshot.Length; pos++)
+            {
+                char ch = snapshot[pos];
+                
+                // Check for escaped braces
+                if (ch == '{' && pos + 1 < snapshot.Length && snapshot[pos + 1] == '{')
+                {
+                    pos++; // Skip escaped
+                    continue;
+                }
+                if (ch == '}' && pos + 1 < snapshot.Length && snapshot[pos + 1] == '}')
+                {
+                    pos++; // Skip escaped
+                    continue;
+                }
+                
+                if (ch == '{')
+                    braceCount++;
+                else if (ch == '}')
+                {
+                    braceCount--;
+                    if (braceCount == 0)
+                    {
+                        return (point, new SnapshotPoint(snapshot, pos));
+                    }
+                }
+                
+                // Don't search too far (e.g., max chars for a property)
+                if (pos - point.Position > MaxPropertyLength)
+                    break;
+            }
+        }
+        else if (currentChar == '}')
+        {
+            // Find opening brace, potentially on another line
+            int braceCount = 1;
+            for (int pos = point.Position - 1; pos >= 0; pos--)
+            {
+                char ch = snapshot[pos];
+                
+                // Check for escaped braces
+                if (ch == '}' && pos > 0 && snapshot[pos - 1] == '}')
+                {
+                    pos--; // Skip escaped
+                    continue;
+                }
+                if (ch == '{' && pos > 0 && snapshot[pos - 1] == '{')
+                {
+                    pos--; // Skip escaped
+                    continue;
+                }
+                
+                if (ch == '}')
+                    braceCount++;
+                else if (ch == '{')
+                {
+                    braceCount--;
+                    if (braceCount == 0)
+                    {
+                        return (new SnapshotPoint(snapshot, pos), point);
+                    }
+                }
+                
+                // Don't search too far
+                if (point.Position - pos > MaxPropertyLength)
+                    break;
+            }
+        }
+        
+        return null;
+    }
+
+    /// <summary>
     /// Gets the tags that intersect the given spans.
     /// </summary>
     /// <param name="spans">The spans to get tags for.</param>
@@ -133,51 +382,84 @@ namespace SerilogSyntax.Tagging
             var lineStart = currentLine.Start.Position;
             var lineText = currentLine.GetText();
             
-            // Check if we're in a Serilog call
-            if (!IsSerilogCall(lineText))
+            // First check if we're in a multi-line string context
+            bool inMultiLineString = IsInsideMultiLineString(currentChar);
+            
+            // For single-line strings, use existing logic
+            if (!inMultiLineString && !IsSerilogCall(lineText))
                 yield break;
 
             var charAtCaret = currentChar.GetChar();
             var positionInLine = currentChar.Position - lineStart;
 
-            int open = -1, close = -1;
+            SnapshotPoint? openPt = null;
+            SnapshotPoint? closePt = null;
 
-            // Check if caret is on a brace
-            if (charAtCaret == '{')
+            if (inMultiLineString)
             {
-                open = positionInLine;
-                close = FindMatchingCloseBrace(lineText, positionInLine);
-            }
-            else if (charAtCaret == '}')
-            {
-                close = positionInLine;
-                open = FindMatchingOpenBrace(lineText, positionInLine);
-            }
-            else if (positionInLine > 0 && lineText[positionInLine - 1] == '}')
-            {
-                // Caret is just after a closing brace
-                close = positionInLine - 1;
-                open = FindMatchingOpenBrace(lineText, close);
-            }
-
-            if (open >= 0 && close >= 0)
-            {
-                var openPt = new SnapshotPoint(snapshot, lineStart + open);
-                var closePt = new SnapshotPoint(snapshot, lineStart + close);
-
-                // Tell the state which pair we're on. This also clears prior dismissal
-                // if we've moved to a different pair.
-                _state.SetCurrentPair(openPt, closePt);
-
-                if (!_state.IsDismissedForCurrentPair)
+                // Use multi-line brace matching
+                var match = FindMultiLineBraceMatch(currentChar);
+                if (match.HasValue)
                 {
-                    yield return CreateTagSpan(snapshot, openPt.Position, 1);
-                    yield return CreateTagSpan(snapshot, closePt.Position, 1);
+                    openPt = match.Value.open;
+                    closePt = match.Value.close;
+                }
+                else if (currentChar.Position > 0)
+                {
+                    // Check if cursor is just after a brace
+                    var prevPoint = new SnapshotPoint(snapshot, currentChar.Position - 1);
+                    if (prevPoint.GetChar() == '}')
+                    {
+                        var prevMatch = FindMultiLineBraceMatch(prevPoint);
+                        if (prevMatch.HasValue)
+                        {
+                            openPt = prevMatch.Value.open;
+                            closePt = prevMatch.Value.close;
+                        }
+                    }
                 }
             }
             else
             {
-                // Cursor is not on a brace - clear the current pair and any dismissal
+                // Use existing single-line logic
+                int open = -1, close = -1;
+
+                if (charAtCaret == '{')
+                {
+                    open = positionInLine;
+                    close = FindMatchingCloseBrace(lineText, positionInLine);
+                }
+                else if (charAtCaret == '}')
+                {
+                    close = positionInLine;
+                    open = FindMatchingOpenBrace(lineText, positionInLine);
+                }
+                else if (positionInLine > 0 && lineText[positionInLine - 1] == '}')
+                {
+                    close = positionInLine - 1;
+                    open = FindMatchingOpenBrace(lineText, close);
+                }
+
+                if (open >= 0 && close >= 0)
+                {
+                    openPt = new SnapshotPoint(snapshot, lineStart + open);
+                    closePt = new SnapshotPoint(snapshot, lineStart + close);
+                }
+            }
+
+            // Create tag spans if we found a match
+            if (openPt.HasValue && closePt.HasValue)
+            {
+                _state.SetCurrentPair(openPt.Value, closePt.Value);
+
+                if (!_state.IsDismissedForCurrentPair)
+                {
+                    yield return CreateTagSpan(snapshot, openPt.Value.Position, 1);
+                    yield return CreateTagSpan(snapshot, closePt.Value.Position, 1);
+                }
+            }
+            else
+            {
                 _state.ClearCurrentPair();
             }
         }

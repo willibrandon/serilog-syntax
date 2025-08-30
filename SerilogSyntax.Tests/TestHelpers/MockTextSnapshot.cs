@@ -145,10 +145,10 @@ public class MockTextSnapshot : ITextSnapshot
     public void CopyTo(int sourceIndex, char[] destination, int destinationIndex, int count) => _text.CopyTo(sourceIndex, destination, destinationIndex, count);
 
     /// <inheritdoc/>
-    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode) => throw new NotImplementedException();
+    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode) => new MockTrackingPoint(this, position, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => throw new NotImplementedException();
+    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingPoint(this, position, trackingMode);
 
     /// <inheritdoc/>
     public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode) => throw new NotImplementedException();
@@ -324,10 +324,10 @@ internal class MockTextVersion(int versionNumber, INormalizedTextChangeCollectio
     public int ReiteratedVersionNumber { get; } = versionNumber;
 
     /// <inheritdoc/>
-    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode) => throw new NotImplementedException();
+    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode) => new MockTrackingPoint(null, position, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => throw new NotImplementedException();
+    public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingPoint(null, position, trackingMode);
 
     /// <inheritdoc/>
     public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode) => throw new NotImplementedException();
@@ -363,4 +363,37 @@ internal class MockContentType(string typeName) : IContentType
 
     /// <inheritdoc/>
     public bool IsOfType(string type) => TypeName.Equals(type, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// Mock implementation of ITrackingPoint for testing.
+/// </summary>
+/// <remarks>
+/// Initializes a new instance of the <see cref="MockTrackingPoint"/> class.
+/// </remarks>
+/// <param name="snapshot">The text snapshot.</param>
+/// <param name="position">The position in the snapshot.</param>
+/// <param name="trackingMode">The tracking mode.</param>
+public class MockTrackingPoint(ITextSnapshot snapshot, int position, PointTrackingMode trackingMode) : ITrackingPoint
+{
+    /// <inheritdoc/>
+    public ITextBuffer TextBuffer => snapshot?.TextBuffer;
+
+    /// <inheritdoc/>
+    public PointTrackingMode TrackingMode => trackingMode;
+
+    /// <inheritdoc/>
+    public TrackingFidelityMode TrackingFidelity => TrackingFidelityMode.Forward;
+
+    /// <inheritdoc/>
+    public SnapshotPoint GetPoint(ITextSnapshot snapshot) => new(snapshot, Math.Min(position, snapshot.Length));
+
+    /// <inheritdoc/>
+    public char GetCharacter(ITextSnapshot snapshot) => GetPoint(snapshot).GetChar();
+
+    /// <inheritdoc/>
+    public int GetPosition(ITextSnapshot snapshot) => GetPoint(snapshot).Position;
+
+    /// <inheritdoc/>
+    public int GetPosition(ITextVersion version) => position;
 }

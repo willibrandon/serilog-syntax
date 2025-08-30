@@ -17,7 +17,7 @@ public class MockTextBuffer : ITextBuffer
     /// Initializes a new instance of the <see cref="MockTextBuffer"/> class.
     /// </summary>
     /// <param name="text">The initial text content of the buffer.</param>
-    private MockTextBuffer(string text)
+    public MockTextBuffer(string text)
     {
         _contentType = new MockContentType("CSharp");
         _currentSnapshot = new MockTextSnapshot(text, this, 0);

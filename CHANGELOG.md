@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-08-30
+
+### Added
+- Multi-line brace matching support for Serilog templates
+  - Brace highlights now work across line boundaries in multi-line strings
+  - Full support for verbatim strings (`@"..."`) spanning multiple lines
+  - Full support for C# 11 raw string literals (`"""..."""`) spanning multiple lines
+  - Handles properties split across lines with formatting (e.g., `{Amount,\n10:C2}`)
+  - ESC key dismissal works with multi-line matches
+- Configurable performance limits for multi-line detection
+  - `MaxLookbackLines` (20) - lines to search backward for string starts
+  - `MaxLookforwardLines` (50) - lines to search forward for string ends
+  - `MaxPropertyLength` (200) - max character distance for brace matching
+- Test infrastructure for brace matching
+  - New `MultiLineBraceMatcherTests` with 6 multi-line scenarios
+  - Updated `SerilogBraceMatcherTests` to use real implementation
+  - Mock implementations for `ITextView`, `ITextCaret`, and related VS interfaces
+
+### Changed
+- Enhanced `SerilogBraceMatcher` with multi-line awareness
+  - Added `IsInsideMultiLineString()` method for context detection
+  - Added `FindMultiLineBraceMatch()` for cross-line brace matching
+  - Improved caret position tracking with initialization in constructor
+- Refactored test helpers with complete interface implementations
+  - `MockTextView` with full event support
+  - `MockTextCaret` with position change notifications
+  - `MockTrackingPoint` for snapshot tracking
+
+### Fixed
+- Brace matching now correctly handles:
+  - Properties in multi-line verbatim strings
+  - Properties in multi-line raw string literals
+  - Escaped braces (`{{` and `}}`) in multi-line contexts
+  - Cursor positioning after closing braces
+
 ## [0.3.0] - 2025-08-30
 
 ### Added
@@ -116,6 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.4.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.0
 [0.3.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.3.0
 [0.2.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.2.0
 [0.1.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.1.1
