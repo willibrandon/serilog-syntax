@@ -199,9 +199,9 @@ Key components:
 - `SerilogClassifier` - Handles syntax highlighting with smart cache invalidation
 - `SerilogBraceMatcher` - Provides brace matching
 - `SerilogNavigationProvider` - Enables property-to-argument navigation
+- `SerilogCallDetector` - Optimized Serilog call detection with pre-check optimization
 - `TemplateParser` - Parses Serilog message templates
 - `LruCache` - Thread-safe LRU cache providing 268x-510x performance improvement
-- `SerilogCallDetector` - Optimized Serilog call detection with pre-check optimization
 
 ## Contributing
 
