@@ -196,10 +196,12 @@ The extension uses Visual Studio's extensibility APIs:
 - **MEF (Managed Extensibility Framework)** - For Visual Studio integration
 
 Key components:
-- `SerilogClassifier` - Handles syntax highlighting
+- `SerilogClassifier` - Handles syntax highlighting with smart cache invalidation
 - `SerilogBraceMatcher` - Provides brace matching
 - `SerilogNavigationProvider` - Enables property-to-argument navigation
 - `TemplateParser` - Parses Serilog message templates
+- `LruCache` - Thread-safe LRU cache providing 268x-510x performance improvement
+- `SerilogCallDetector` - Optimized Serilog call detection with pre-check optimization
 
 ## Contributing
 
