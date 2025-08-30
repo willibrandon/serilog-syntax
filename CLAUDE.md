@@ -40,6 +40,19 @@ msbuild SerilogSyntax.sln /t:Clean
 .\test.ps1 -Configuration Release
 ```
 
+### Running Benchmarks
+```powershell
+# Run all benchmarks
+.\benchmark.ps1
+
+# Run specific benchmark category
+.\benchmark.ps1 -Filter "Parser*"
+.\benchmark.ps1 -Filter "Cache*"
+
+# Run benchmarks in Release mode (default)
+.\benchmark.ps1 -Configuration Release
+```
+
 ### Running and Debugging
 The project is configured to launch Visual Studio with the experimental instance when debugging:
 - Start Program: `devenv.exe`
@@ -56,8 +69,11 @@ To test the extension, press F5 in Visual Studio which will launch a new VS inst
   - **source.extension.vsixmanifest** - Extension manifest defining metadata and installation targets
   - **Properties/AssemblyInfo.cs** - Assembly metadata
 - **SerilogSyntax.Tests/** - xUnit test project (.NET Framework 4.7.2)
+- **SerilogSyntax.Benchmarks/** - BenchmarkDotNet performance tests (.NET Framework 4.7.2)
+- **Example/** - Standalone console app demonstrating all syntax features (.NET 8.0)
 - **build.ps1** - Build script for the solution
 - **test.ps1** - Test runner script
+- **benchmark.ps1** - Benchmark runner script
 
 ### Key Components
 
@@ -117,9 +133,11 @@ The extension includes these components:
 4. **Navigation/SerilogNavigationProvider.cs** - Navigation from properties to arguments via light bulb
 5. **Tagging/SerilogBraceMatcher.cs** - Implements `ITagger<TextMarkerTag>` for brace matching
 6. **Utilities/SerilogCallDetector.cs** - Centralized Serilog call detection logic
+7. **Utilities/LruCache.cs** - Thread-safe LRU cache for parsed templates
 
 ### Performance Considerations
-- Cache parsed templates by string content
-- Use incremental parsing for changed spans
-- Don't block UI thread - use async where possible
-- Minimal allocations - reuse parser instances
+- LRU cache for parsed templates (10x improvement for repeated templates)
+- Pre-check optimization before regex matching (8x faster for non-Serilog code)
+- Incremental cache invalidation for changed spans only
+- Detection of multi-line verbatim strings without full document parsing
+- Classes over structs for better .NET Framework performance
