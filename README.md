@@ -39,7 +39,6 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 - Highlight matching braces when cursor is positioned on `{` or `}`
 - Visual indication of brace pairs in complex templates
 - **Multi-line support** - matches braces across line boundaries in verbatim and raw strings
-- Works with properties split across lines: `{Amount,\n10:C2}`
 - Press **ESC** to temporarily dismiss highlights
 - Helps identify mismatched or nested braces
 

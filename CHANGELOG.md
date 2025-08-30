@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-08-30
+
+### Fixed
+- Removed incorrect claim about supporting properties split across lines
+- Documentation now correctly states that Serilog properties must be complete on a single line
+
 ## [0.4.0] - 2025-08-30
 
 ### Added
@@ -14,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Brace highlights now work across line boundaries in multi-line strings
   - Full support for verbatim strings (`@"..."`) spanning multiple lines
   - Full support for C# 11 raw string literals (`"""..."""`) spanning multiple lines
-  - Handles properties split across lines with formatting (e.g., `{Amount,\n10:C2}`)
   - ESC key dismissal works with multi-line matches
 - Configurable performance limits for multi-line detection
   - `MaxLookbackLines` (20) - lines to search backward for string starts
@@ -151,6 +156,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.4.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.1
 [0.4.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.0
 [0.3.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.3.0
 [0.2.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.2.0
