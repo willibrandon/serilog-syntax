@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace SerilogSyntax.Parsing;
@@ -19,182 +20,336 @@ internal class TemplateParser
             yield break;
 
         var state = ParseState.Outside;
-        var startIndex = -1;
-        var propertyStartIndex = -1;
-        var formatStartIndex = -1;
-        var alignmentStartIndex = -1;
-        var operatorIndex = -1;
-        var propertyType = PropertyType.Standard;
+        var recovery = new ParserRecovery();
+        var results = new List<TemplateProperty>();
         
         for (int i = 0; i < template.Length; i++)
         {
             char ch = template[i];
             char nextCh = i + 1 < template.Length ? template[i + 1] : '\0';
+            TemplateProperty propertyToAdd = null;
 
-            switch (state)
+            try
             {
-                case ParseState.Outside:
-                    if (ch == '{')
-                    {
-                        if (nextCh == '{') // Escaped brace
+                switch (state)
+                {
+                    case ParseState.Outside:
+                        if (ch == '{')
                         {
-                            i++; // Skip next brace
-                        }
-                        else
-                        {
-                            startIndex = i;
-                            state = ParseState.OpenBrace;
-                            propertyStartIndex = -1;
-                            formatStartIndex = -1;
-                            alignmentStartIndex = -1;
-                            operatorIndex = -1;
-                            propertyType = PropertyType.Standard;
-                        }
-                    }
-                    break;
-
-                case ParseState.OpenBrace:
-                    if (char.IsWhiteSpace(ch))
-                    {
-                        // Skip leading whitespace
-                        continue;
-                    }
-                    else if (ch == '@')
-                    {
-                        propertyType = PropertyType.Destructured;
-                        operatorIndex = i;
-                        propertyStartIndex = i + 1;
-                        state = ParseState.Property;
-                    }
-                    else if (ch == '$')
-                    {
-                        propertyType = PropertyType.Stringified;
-                        operatorIndex = i;
-                        propertyStartIndex = i + 1;
-                        state = ParseState.Property;
-                    }
-                    else if (char.IsDigit(ch))
-                    {
-                        propertyType = PropertyType.Positional;
-                        propertyStartIndex = i;
-                        state = ParseState.Property;
-                    }
-                    else if (IsValidPropertyStartChar(ch))
-                    {
-                        propertyStartIndex = i;
-                        state = ParseState.Property;
-                    }
-                    else if (ch == '}')
-                    {
-                        // Empty property - skip
-                        state = ParseState.Outside;
-                    }
-                    else if (!char.IsWhiteSpace(ch))
-                    {
-                        // Invalid - skip this brace
-                        state = ParseState.Outside;
-                    }
-                    break;
-
-                case ParseState.Property:
-                    if (ch == '}')
-                    {
-                        // End of property
-                        if (propertyStartIndex >= 0)
-                        {
-                            var prop = CreateProperty(template, startIndex, i, propertyStartIndex, 
-                                formatStartIndex, alignmentStartIndex, operatorIndex, propertyType);
-                            if (prop != null)
-                                yield return prop;
-                        }
-                        state = ParseState.Outside;
-                    }
-                    else if (ch == ':')
-                    {
-                        formatStartIndex = i;
-                        state = ParseState.Format;
-                    }
-                    else if (ch == ',')
-                    {
-                        alignmentStartIndex = i;
-                        state = ParseState.Alignment;
-                    }
-                    else if (char.IsWhiteSpace(ch))
-                    {
-                        // Check if we have any following non-whitespace chars before }
-                        bool hasMoreContent = false;
-                        for (int j = i + 1; j < template.Length; j++)
-                        {
-                            if (template[j] == '}')
-                                break;
-                            if (!char.IsWhiteSpace(template[j]))
+                            if (nextCh == '{') // Escaped brace
                             {
-                                hasMoreContent = true;
-                                break;
+                                i++; // Skip next brace
+                            }
+                            else
+                            {
+                                recovery.StartProperty(i);
+                                state = ParseState.OpenBrace;
                             }
                         }
-                        if (hasMoreContent)
+                        break;
+
+                    case ParseState.OpenBrace:
+                        if (char.IsWhiteSpace(ch))
                         {
-                            // Invalid - property names can't contain spaces
+                            // Skip leading whitespace
+                            continue;
+                        }
+                        else if (ch == '@')
+                        {
+                            recovery.PropertyType = PropertyType.Destructured;
+                            recovery.OperatorIndex = i;
+                            recovery.PropertyNameStart = i + 1;
+                            state = ParseState.Property;
+                        }
+                        else if (ch == '$')
+                        {
+                            recovery.PropertyType = PropertyType.Stringified;
+                            recovery.OperatorIndex = i;
+                            recovery.PropertyNameStart = i + 1;
+                            state = ParseState.Property;
+                        }
+                        else if (char.IsDigit(ch))
+                        {
+                            recovery.PropertyType = PropertyType.Positional;
+                            recovery.PropertyNameStart = i;
+                            state = ParseState.Property;
+                        }
+                        else if (IsValidPropertyStartChar(ch))
+                        {
+                            recovery.PropertyNameStart = i;
+                            state = ParseState.Property;
+                        }
+                        else if (ch == '}')
+                        {
+                            // Empty property - skip
+                            recovery.Reset();
                             state = ParseState.Outside;
                         }
-                        // Otherwise, it's trailing whitespace - continue parsing
-                    }
-                    else if (propertyType == PropertyType.Positional && !char.IsDigit(ch))
-                    {
-                        // Invalid positional property
-                        state = ParseState.Outside;
-                    }
-                    else if (!IsValidPropertyChar(ch))
-                    {
-                        // Invalid property character
-                        state = ParseState.Outside;
-                    }
-                    break;
-
-                case ParseState.Alignment:
-                    if (ch == '}')
-                    {
-                        // End with alignment
-                        if (propertyStartIndex >= 0)
+                        else if (!char.IsWhiteSpace(ch) && ch != '@' && ch != '$')
                         {
-                            var prop = CreateProperty(template, startIndex, i, propertyStartIndex,
-                                formatStartIndex, alignmentStartIndex, operatorIndex, propertyType);
-                            if (prop != null)
-                                yield return prop;
-                        }
-                        state = ParseState.Outside;
-                    }
-                    else if (ch == ':')
-                    {
-                        formatStartIndex = i;
-                        state = ParseState.Format;
-                    }
-                    break;
-
-                case ParseState.Format:
-                    if (ch == '}')
-                    {
-                        // Check if it's escaped in format string
-                        if (nextCh == '}')
-                        {
-                            i++; // Skip next brace - it's part of the format
-                        }
-                        else
-                        {
-                            // End of property with format
-                            if (propertyStartIndex >= 0)
+                            // Try to recover by finding the next valid position
+                            var recovered = recovery.TryRecover(template, i);
+                            if (recovered.HasValue)
                             {
-                                var prop = CreateProperty(template, startIndex, i, propertyStartIndex,
-                                    formatStartIndex, alignmentStartIndex, operatorIndex, propertyType);
-                                if (prop != null)
-                                    yield return prop;
+                                i = recovered.Value - 1; // -1 because loop will increment
+                                state = ParseState.Outside;
                             }
+                            else
+                            {
+                                recovery.Reset();
+                                state = ParseState.Outside;
+                            }
+                        }
+                        break;
+
+                    case ParseState.Property:
+                        if (ch == '}')
+                        {
+                            // End of property
+                            if (recovery.PropertyNameStart >= 0)
+                            {
+                                propertyToAdd = CreateProperty(template, recovery.PropertyStart, i, recovery.PropertyNameStart, 
+                                    recovery.FormatStart, recovery.AlignmentStart, recovery.OperatorIndex, recovery.PropertyType);
+                            }
+                            recovery.Reset();
                             state = ParseState.Outside;
                         }
-                    }
-                    break;
+                        else if (ch == ':')
+                        {
+                            recovery.FormatStart = i;
+                            state = ParseState.Format;
+                        }
+                        else if (ch == ',')
+                        {
+                            recovery.AlignmentStart = i;
+                            state = ParseState.Alignment;
+                        }
+                        else if (char.IsWhiteSpace(ch))
+                        {
+                            // Check if we have any following non-whitespace chars before }
+                            bool hasMoreContent = false;
+                            for (int j = i + 1; j < template.Length; j++)
+                            {
+                                if (template[j] == '}')
+                                    break;
+                                if (!char.IsWhiteSpace(template[j]))
+                                {
+                                    hasMoreContent = true;
+                                    break;
+                                }
+                            }
+                            if (hasMoreContent)
+                            {
+                                // Invalid - property names can't contain spaces
+                                // Try to recover
+                                var recovered = recovery.TryRecover(template, i);
+                                if (recovered.HasValue)
+                                {
+                                    i = recovered.Value - 1;
+                                }
+                                recovery.Reset();
+                                state = ParseState.Outside;
+                            }
+                            // Otherwise, it's trailing whitespace - continue parsing
+                        }
+                        else if (recovery.PropertyType == PropertyType.Positional && !char.IsDigit(ch))
+                        {
+                            // Invalid positional property - try to recover
+                            var recovered = recovery.TryRecover(template, i);
+                            if (recovered.HasValue)
+                            {
+                                i = recovered.Value - 1;
+                            }
+                            recovery.Reset();
+                            state = ParseState.Outside;
+                        }
+                        else if (!IsValidPropertyChar(ch))
+                        {
+                            // Invalid property character - try to recover
+                            var recovered = recovery.TryRecover(template, i);
+                            if (recovered.HasValue)
+                            {
+                                i = recovered.Value - 1;
+                            }
+                            recovery.Reset();
+                            state = ParseState.Outside;
+                        }
+                        break;
+
+                    case ParseState.Alignment:
+                        if (ch == '}')
+                        {
+                            // End with alignment
+                            if (recovery.PropertyNameStart >= 0)
+                            {
+                                propertyToAdd = CreateProperty(template, recovery.PropertyStart, i, recovery.PropertyNameStart,
+                                    recovery.FormatStart, recovery.AlignmentStart, recovery.OperatorIndex, recovery.PropertyType);
+                            }
+                            recovery.Reset();
+                            state = ParseState.Outside;
+                        }
+                        else if (ch == ':')
+                        {
+                            recovery.FormatStart = i;
+                            state = ParseState.Format;
+                        }
+                        break;
+
+                    case ParseState.Format:
+                        if (ch == '}')
+                        {
+                            // Check if it's escaped in format string
+                            if (nextCh == '}')
+                            {
+                                i++; // Skip next brace - it's part of the format
+                            }
+                            else
+                            {
+                                // End of property with format
+                                if (recovery.PropertyNameStart >= 0)
+                                {
+                                    propertyToAdd = CreateProperty(template, recovery.PropertyStart, i, recovery.PropertyNameStart,
+                                        recovery.FormatStart, recovery.AlignmentStart, recovery.OperatorIndex, recovery.PropertyType);
+                                }
+                                recovery.Reset();
+                                state = ParseState.Outside;
+                            }
+                        }
+                        break;
+                }
             }
+            catch
+            {
+                // Recover from unexpected errors
+                state = ParseState.Outside;
+                recovery.Reset();
+            }
+
+            // Add property outside of try block
+            if (propertyToAdd != null)
+            {
+                results.Add(propertyToAdd);
+            }
+        }
+        
+        // Handle any unclosed properties at the end
+        if (state != ParseState.Outside && recovery.HasPartialProperty())
+        {
+            var partial = recovery.GetPartialProperty(template);
+            if (partial != null)
+                results.Add(partial);
+        }
+
+        // Return all collected results
+        foreach (var result in results)
+        {
+            yield return result;
+        }
+    }
+
+    /// <summary>
+    /// Handles error recovery for malformed template properties.
+    /// </summary>
+    private class ParserRecovery
+    {
+        /// <summary>
+        /// Index of the opening brace '{'.
+        /// </summary>
+        public int PropertyStart { get; private set; } = -1;
+        
+        /// <summary>
+        /// Starting index of the property name.
+        /// </summary>
+        public int PropertyNameStart { get; set; } = -1;
+        
+        /// <summary>
+        /// Type of property (Standard, Destructured, Stringified, or Positional).
+        /// </summary>
+        public PropertyType PropertyType { get; set; } = PropertyType.Standard;
+        
+        /// <summary>
+        /// Starting index of the format specifier ':'.
+        /// </summary>
+        public int FormatStart { get; set; } = -1;
+        
+        /// <summary>
+        /// Starting index of the alignment specifier ','.
+        /// </summary>
+        public int AlignmentStart { get; set; } = -1;
+        
+        /// <summary>
+        /// Index of the operator ('@' or '$') if present.
+        /// </summary>
+        public int OperatorIndex { get; set; } = -1;
+        
+        /// <summary>
+        /// Starts tracking a new property at the given position.
+        /// </summary>
+        public void StartProperty(int position)
+        {
+            PropertyStart = position;
+            PropertyNameStart = -1;
+            PropertyType = PropertyType.Standard;
+            FormatStart = -1;
+            AlignmentStart = -1;
+            OperatorIndex = -1;
+        }
+        
+        /// <summary>
+        /// Resets all tracking state.
+        /// </summary>
+        public void Reset()
+        {
+            PropertyStart = -1;
+            PropertyNameStart = -1;
+            PropertyType = PropertyType.Standard;
+            FormatStart = -1;
+            AlignmentStart = -1;
+            OperatorIndex = -1;
+        }
+        
+        /// <summary>
+        /// Checks if we have enough info to create a partial property.
+        /// </summary>
+        public bool HasPartialProperty() => PropertyStart >= 0 && PropertyNameStart >= 0;
+        
+        /// <summary>
+        /// Attempts to find a recovery point in the template.
+        /// </summary>
+        public int? TryRecover(string template, int currentPosition)
+        {
+            // Look for the next closing brace or opening brace
+            for (int i = currentPosition; i < template.Length; i++)
+            {
+                if (template[i] == '}' || template[i] == '{')
+                    return i;
+            }
+            return null;
+        }
+        
+        /// <summary>
+        /// Creates a partial property from the tracked state.
+        /// </summary>
+        public TemplateProperty GetPartialProperty(string template)
+        {
+            if (!HasPartialProperty())
+                return null;
+                
+            // Create a property from what we have so far
+            // This allows highlighting of incomplete properties during typing
+            var length = Math.Min(template.Length - PropertyNameStart, 20);
+            return new TemplateProperty(
+                template.Substring(PropertyNameStart, length),
+                PropertyNameStart,
+                length,
+                PropertyType,
+                PropertyStart,
+                -1,  // Indicates incomplete
+                null,
+                FormatStart,
+                OperatorIndex,
+                null,
+                AlignmentStart);
         }
     }
 
@@ -231,35 +386,36 @@ internal class TemplateParser
         if (string.IsNullOrEmpty(name))
             return null;
         
-        var property = new TemplateProperty
-        {
-            Name = name,
-            StartIndex = propertyStart,
-            Length = propertyLength,
-            Type = type,
-            BraceStartIndex = braceStart,
-            BraceEndIndex = braceEnd
-        };
-
-        if (operatorIndex >= 0)
-        {
-            property.OperatorIndex = operatorIndex;
-        }
+        string formatSpec = null;
+        int formatStartIdx = -1;
+        string alignmentValue = null;
+        int alignmentStartIdx = -1;
 
         if (alignmentStart >= 0)
         {
             int alignmentEnd = formatStart >= 0 ? formatStart : braceEnd;
-            property.AlignmentStartIndex = alignmentStart + 1; // Skip the comma
-            property.Alignment = template.Substring(alignmentStart + 1, alignmentEnd - alignmentStart - 1).Trim();
+            alignmentStartIdx = alignmentStart + 1; // Skip the comma
+            alignmentValue = template.Substring(alignmentStart + 1, alignmentEnd - alignmentStart - 1).Trim();
         }
 
         if (formatStart >= 0)
         {
-            property.FormatStartIndex = formatStart + 1; // Skip the colon
-            property.FormatSpecifier = template.Substring(formatStart + 1, braceEnd - formatStart - 1).Trim();
+            formatStartIdx = formatStart + 1; // Skip the colon
+            formatSpec = template.Substring(formatStart + 1, braceEnd - formatStart - 1).Trim();
         }
 
-        return property;
+        return new TemplateProperty(
+            name,
+            propertyStart,
+            propertyLength,
+            type,
+            braceStart,
+            braceEnd,
+            formatSpec,
+            formatStartIdx,
+            operatorIndex,
+            alignmentValue,
+            alignmentStartIdx);
     }
 
     /// <summary>

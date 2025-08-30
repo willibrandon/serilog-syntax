@@ -3,62 +3,109 @@ namespace SerilogSyntax.Parsing;
 /// <summary>
 /// Represents a property within a Serilog message template.
 /// </summary>
-internal class TemplateProperty
+/// <remarks>
+/// Creates a new template property with all parameters.
+/// </remarks>
+internal class TemplateProperty(
+    string name,
+    int startIndex,
+    int length,
+    PropertyType type,
+    int braceStartIndex,
+    int braceEndIndex,
+    string formatSpecifier = null,
+    int formatStartIndex = -1,
+    int operatorIndex = -1,
+    string alignment = null,
+    int alignmentStartIndex = -1)
 {
     /// <summary>
-    /// Gets or sets the name of the property (without operators or braces).
+    /// Creates a standard property {PropertyName}.
     /// </summary>
-    public string Name { get; set; }
+    public static TemplateProperty CreateStandard(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Standard, braceStartIndex, braceEndIndex);
+    }
 
     /// <summary>
-    /// Gets or sets the starting index of the property name within the template.
+    /// Creates a destructured property {@PropertyName}.
     /// </summary>
-    public int StartIndex { get; set; }
+    public static TemplateProperty CreateDestructured(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex, int operatorIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Destructured, braceStartIndex, braceEndIndex, 
+            operatorIndex: operatorIndex);
+    }
 
     /// <summary>
-    /// Gets or sets the length of the property name.
+    /// Creates a stringified property {$PropertyName}.
     /// </summary>
-    public int Length { get; set; }
+    public static TemplateProperty CreateStringified(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex, int operatorIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Stringified, braceStartIndex, braceEndIndex,
+            operatorIndex: operatorIndex);
+    }
 
     /// <summary>
-    /// Gets or sets the type of the property.
+    /// Creates a positional property {0}.
     /// </summary>
-    public PropertyType Type { get; set; }
+    public static TemplateProperty CreatePositional(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Positional, braceStartIndex, braceEndIndex);
+    }
+    /// <summary>
+    /// Gets the name of the property (without operators or braces).
+    /// </summary>
+    public string Name { get; } = name ?? string.Empty;
 
     /// <summary>
-    /// Gets or sets the format specifier (e.g., "yyyy-MM-dd" in {Date:yyyy-MM-dd}).
+    /// Gets the starting index of the property name within the template.
     /// </summary>
-    public string FormatSpecifier { get; set; }
+    public int StartIndex { get; } = startIndex;
 
     /// <summary>
-    /// Gets or sets the starting index of the format specifier including the colon.
+    /// Gets the length of the property name.
     /// </summary>
-    public int FormatStartIndex { get; set; }
+    public int Length { get; } = length;
 
     /// <summary>
-    /// Gets or sets the index of the opening brace.
+    /// Gets the type of the property.
     /// </summary>
-    public int BraceStartIndex { get; set; }
+    public PropertyType Type { get; } = type;
 
     /// <summary>
-    /// Gets or sets the index of the closing brace.
+    /// Gets the format specifier (e.g., "yyyy-MM-dd" in {Date:yyyy-MM-dd}).
     /// </summary>
-    public int BraceEndIndex { get; set; }
+    public string FormatSpecifier { get; } = formatSpecifier;
 
     /// <summary>
-    /// Gets or sets the index of the operator (@ or $) if present.
+    /// Gets the starting index of the format specifier including the colon.
     /// </summary>
-    public int OperatorIndex { get; set; }
+    public int FormatStartIndex { get; } = formatStartIndex;
 
     /// <summary>
-    /// Gets or sets the alignment value (e.g., "10" in {Property,10}).
+    /// Gets the index of the opening brace.
     /// </summary>
-    public string Alignment { get; set; }
+    public int BraceStartIndex { get; } = braceStartIndex;
 
     /// <summary>
-    /// Gets or sets the starting index of the alignment including the comma.
+    /// Gets the index of the closing brace.
     /// </summary>
-    public int AlignmentStartIndex { get; set; }
+    public int BraceEndIndex { get; } = braceEndIndex;
+
+    /// <summary>
+    /// Gets the index of the operator (@ or $) if present.
+    /// </summary>
+    public int OperatorIndex { get; } = operatorIndex;
+
+    /// <summary>
+    /// Gets the alignment value (e.g., "10" in {Property,10}).
+    /// </summary>
+    public string Alignment { get; } = alignment;
+
+    /// <summary>
+    /// Gets the starting index of the alignment including the comma.
+    /// </summary>
+    public int AlignmentStartIndex { get; } = alignmentStartIndex;
 }
 
 /// <summary>

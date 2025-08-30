@@ -9,12 +9,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerilogSyntax.Tests", "Seri
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example", "Example\Example.csproj", "{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerilogSyntax.Benchmarks", "SerilogSyntax.Benchmarks\SerilogSyntax.Benchmarks.csproj", "{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
 		CHANGELOG.md = CHANGELOG.md
+		.github\workflows\ci.yml = .github\workflows\ci.yml
 		CLAUDE.md = CLAUDE.md
 		LICENSE.txt = LICENSE.txt
 		README.md = README.md
+		.github\workflows\release.yml = .github\workflows\release.yml
 	EndProjectSection
 EndProject
 Global
@@ -63,6 +67,18 @@ Global
 		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|arm64.Build.0 = Release|Any CPU
 		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|x86.ActiveCfg = Release|Any CPU
 		{C3F8A5D2-1E4F-4B6C-9A7E-8D2B5F1A3C9E}.Release|x86.Build.0 = Release|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Debug|arm64.ActiveCfg = Debug|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Debug|arm64.Build.0 = Debug|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Debug|x86.Build.0 = Debug|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Release|arm64.ActiveCfg = Release|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Release|arm64.Build.0 = Release|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Release|x86.ActiveCfg = Release|Any CPU
+		{D5B8C9E7-2A3F-4D5E-9B6C-7A8D4E2F3B1C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

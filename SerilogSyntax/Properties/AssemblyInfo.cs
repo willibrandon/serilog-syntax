@@ -34,3 +34,4 @@ using System.Runtime.InteropServices;
 
 // Make internals visible to test assembly
 [assembly: InternalsVisibleTo("SerilogSyntax.Tests")]
+[assembly: InternalsVisibleTo("SerilogSyntax.Benchmarks")]

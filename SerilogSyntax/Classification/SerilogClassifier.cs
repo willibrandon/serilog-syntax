@@ -5,7 +5,6 @@ using SerilogSyntax.Utilities;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace SerilogSyntax.Classification;
@@ -67,22 +66,75 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// <param name="e">The text content changed event arguments.</param>
     private void OnBufferChanged(object sender, TextContentChangedEventArgs e)
     {
-        // Clear caches when buffer changes - this prevents stale cached results
+        // Only invalidate cache for changed spans
+        var changedSpans = new List<SnapshotSpan>();
+        
+        foreach (var change in e.Changes)
+        {
+            // Calculate the affected span in the new snapshot
+            var start = change.NewPosition;
+            var end = start + change.NewLength;
+            
+            // Extend to line boundaries for context
+            var startLine = e.After.GetLineFromPosition(start);
+            var endLine = e.After.GetLineFromPosition(Math.Min(end, e.After.Length - 1));
+            
+            var affectedSpan = new SnapshotSpan(
+                startLine.Start,
+                endLine.EndIncludingLineBreak);
+            
+            changedSpans.Add(affectedSpan);
+        }
+        
+        // Remove only affected spans from cache
+        InvalidateCacheForSpans(changedSpans);
+        
+        // Update snapshot reference
         lock (_cacheLock)
         {
-            if (_lastSnapshot != e.After)
+            _lastSnapshot = e.After;
+        }
+        
+        // Raise classification changed for affected areas only
+        foreach (var span in changedSpans)
+        {
+            ClassificationChanged?.Invoke(this, new ClassificationChangedEventArgs(span));
+        }
+    }
+    
+    /// <summary>
+    /// Invalidates cache entries that overlap with the given spans.
+    /// </summary>
+    /// <param name="spans">The spans to invalidate cache for.</param>
+    private void InvalidateCacheForSpans(List<SnapshotSpan> spans)
+    {
+        var keysToRemove = new List<SnapshotSpan>();
+        
+        lock (_cacheLock)
+        {
+            foreach (var cachedSpan in _classificationCache.Keys)
             {
-                _templateCache.Clear();
-                _classificationCache.Clear();
-                _lastSnapshot = e.After;
+                foreach (var changedSpan in spans)
+                {
+                    if (cachedSpan.OverlapsWith(changedSpan))
+                    {
+                        keysToRemove.Add(cachedSpan);
+                        break;
+                    }
+                }
+            }
+            
+            foreach (var key in keysToRemove)
+            {
+                _classificationCache.TryRemove(key, out _);
             }
         }
     }
 
     /// <summary>
-    /// Event raised when classifications have changed. Currently not implemented as classifications are computed on-demand.
+    /// Event raised when classifications have changed.
     /// </summary>
-    public event EventHandler<ClassificationChangedEventArgs> ClassificationChanged { add { } remove { } }
+    public event EventHandler<ClassificationChangedEventArgs> ClassificationChanged;
 
     /// <summary>
     /// Gets the classification spans that overlap the given span of text.
@@ -107,6 +159,25 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // Early exit if no Serilog calls detected - avoids expensive regex on irrelevant text
             if (string.IsNullOrWhiteSpace(text) || !SerilogCallDetector.IsSerilogCall(text))
             {
+                // Check if we might be inside a multi-line verbatim string
+                if (text.Contains("{") && text.Contains("}"))
+                {
+                    // Look backwards to see if we're inside an unclosed verbatim string
+                    if (IsInsideVerbatimString(span))
+                    {
+                        // We're inside a verbatim string! Parse the current span for properties
+                        var properties = GetCachedTemplateProperties(text);
+                        
+                        // Create classifications for properties in this span
+                        foreach (var property in properties)
+                        {
+                            // Properties are relative to the start of this span's text
+                            int offsetInSnapshot = span.Start;
+                            AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
+                        }
+                    }
+                }
+                
                 _classificationCache.TryAdd(span, classifications);
                 return classifications;
             }
@@ -122,7 +193,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 
                 if (stringLiteral.HasValue)
                 {
-                    var (literalStart, literalEnd, templateText) = stringLiteral.Value;
+                    var (literalStart, literalEnd, templateText, isVerbatim) = stringLiteral.Value;
                     
                     // Use cached template parsing if available
                     var properties = GetCachedTemplateProperties(templateText);
@@ -131,7 +202,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     foreach (var property in properties)
                     {
                         // Adjust indices to account for the string literal position
-                        int offsetInSnapshot = literalStart + 1; // +1 to skip opening quote
+                        // Verbatim strings (@"...") need +2, regular strings ("...") need +1
+                        int offsetInSnapshot = literalStart + (isVerbatim ? 2 : 1);
                         
                         AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
                     }
@@ -251,12 +323,11 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// <param name="text">The text to search in.</param>
     /// <param name="startIndex">The index to start searching from.</param>
     /// <param name="spanStart">The absolute position of the span start in the document.</param>
-    /// <returns>A tuple containing the start position, end position, and content of the string literal, or null if not found.</returns>
-    private (int start, int end, string text)? FindStringLiteral(string text, int startIndex, int spanStart)
+    /// <returns>A tuple containing the start position, end position, content, and whether it's a verbatim string, or null if not found.</returns>
+    private (int start, int end, string text, bool isVerbatim)? FindStringLiteral(string text, int startIndex, int spanStart)
     {
-        // Look for the first string literal, which might not be immediately after the method call
-        // (e.g., LogError(ex, "message") has an exception parameter first)
-        int parenDepth = 1; // We're already inside the first parenthesis from the method call
+        // Look for string literal after Serilog method call
+        int parenDepth = 1;
         
         while (startIndex < text.Length && parenDepth > 0)
         {
@@ -267,67 +338,214 @@ internal class SerilogClassifier : IClassifier, IDisposable
             if (startIndex >= text.Length)
                 return null;
             
-            // Check if we found a string literal
-            if (text[startIndex] == '"')
-                break;
+            // Check for different string literal types
+            if (TryParseStringLiteral(text, startIndex, out var result))
+            {
+                // Determine if it's a verbatim string
+                bool isVerbatim = startIndex < text.Length - 1 && text[startIndex] == '@' && text[startIndex + 1] == '"';
+                return (spanStart + result.Start, spanStart + result.End, result.Content, isVerbatim);
+            }
             
-            // Track parenthesis depth to handle nested calls
+            // Track parenthesis depth
             if (text[startIndex] == '(')
                 parenDepth++;
             else if (text[startIndex] == ')')
             {
                 parenDepth--;
                 if (parenDepth == 0)
-                    return null; // Reached the end of the method call without finding a string
+                    return null;
             }
             
-            // Skip this character and continue looking
             startIndex++;
         }
         
-        if (startIndex >= text.Length || text[startIndex] != '"')
-            return null;
+        return null;
+    }
 
-        // Check if it's a verbatim string or interpolated string
-        if (startIndex > 0)
+    /// <summary>
+    /// Attempts to parse any type of string literal (regular, verbatim, or interpolated).
+    /// </summary>
+    /// <param name="text">The text to parse.</param>
+    /// <param name="startIndex">The starting index of the string literal.</param>
+    /// <param name="result">The parsed string boundaries and content.</param>
+    /// <returns>True if a string literal was successfully parsed; otherwise, false.</returns>
+    private bool TryParseStringLiteral(string text, int startIndex, out (int Start, int End, string Content) result)
+    {
+        result = default;
+        
+        // Check for verbatim string @"..."
+        if (startIndex < text.Length - 1 && text[startIndex] == '@' && text[startIndex + 1] == '"')
         {
-            if (text[startIndex - 1] == '@') // Verbatim string
-                return null; // Skip for now - could be supported later
-            if (text[startIndex - 1] == '$') // Interpolated string
-                return null; // Serilog doesn't use interpolated strings
+            return TryParseVerbatimString(text, startIndex, out result);
         }
+        
+        // Check for interpolated string $"..." (skip for Serilog)
+        if (startIndex < text.Length - 1 && text[startIndex] == '$' && text[startIndex + 1] == '"')
+        {
+            // Serilog doesn't use interpolated strings, but we should handle them gracefully
+            return false;
+        }
+        
+        // Check for regular string "..."
+        if (startIndex < text.Length && text[startIndex] == '"')
+        {
+            return TryParseRegularString(text, startIndex, out result);
+        }
+        
+        return false;
+    }
 
-        // Find the end of the string literal
-        int endIndex = startIndex + 1;
+    /// <summary>
+    /// Parses a verbatim string literal (@"...").
+    /// </summary>
+    /// <param name="text">The text to parse.</param>
+    /// <param name="startIndex">The starting index of the @ symbol.</param>
+    /// <param name="result">The parsed string boundaries and content.</param>
+    /// <returns>True if successfully parsed; otherwise, false.</returns>
+    private bool TryParseVerbatimString(string text, int startIndex, out (int Start, int End, string Content) result)
+    {
+        result = default;
+        int contentStart = startIndex + 2; // Skip @"
+        int current = contentStart;
+        
+        while (current < text.Length)
+        {
+            if (text[current] == '"')
+            {
+                // Check for escaped quote ""
+                if (current + 1 < text.Length && text[current + 1] == '"')
+                {
+                    current += 2;
+                    continue;
+                }
+                
+                // Found the end
+                result = (startIndex, current, text.Substring(contentStart, current - contentStart));
+                return true;
+            }
+            current++;
+        }
+        
+        // Incomplete string - return what we have
+        if (current > contentStart)
+        {
+            result = (startIndex, current, text.Substring(contentStart, current - contentStart));
+            return true;
+        }
+        
+        return false;
+    }
+
+    private bool TryParseRegularString(string text, int startIndex, out (int Start, int End, string Content) result)
+    {
+        result = default;
+        int contentStart = startIndex + 1; // Skip "
+        int current = contentStart;
         bool escaped = false;
         
-        while (endIndex < text.Length)
+        while (current < text.Length)
         {
             if (escaped)
             {
                 escaped = false;
+                current++;
+                continue;
             }
-            else if (text[endIndex] == '\\')
+            
+            if (text[current] == '\\')
             {
                 escaped = true;
+                current++;
+                continue;
             }
-            else if (text[endIndex] == '"')
+            
+            if (text[current] == '"')
             {
                 // Found the end
-                string literalContent = text.Substring(startIndex + 1, endIndex - startIndex - 1);
-                return (spanStart + startIndex, spanStart + endIndex, literalContent);
+                result = (startIndex, current, text.Substring(contentStart, current - contentStart));
+                return true;
             }
-            endIndex++;
-        }
-
-        // Incomplete string literal - return what we have so far
-        if (endIndex > startIndex + 1)
-        {
-            string literalContent = text.Substring(startIndex + 1, endIndex - startIndex - 1);
-            return (spanStart + startIndex, spanStart + endIndex, literalContent);
+            
+            current++;
         }
         
-        return null;
+        // Incomplete string - return what we have
+        if (current > contentStart)
+        {
+            result = (startIndex, current, text.Substring(contentStart, current - contentStart));
+            return true;
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if the given span is inside an unclosed verbatim string literal.
+    /// </summary>
+    /// <param name="span">The span to check.</param>
+    /// <returns>True if the span is inside a verbatim string; otherwise, false.</returns>
+    private bool IsInsideVerbatimString(SnapshotSpan span)
+    {
+        try
+        {
+            var snapshot = span.Snapshot;
+            var currentLine = snapshot.GetLineFromPosition(span.Start);
+            var lineNumber = currentLine.LineNumber;
+            
+            // Look backwards up to 10 lines to find an unclosed verbatim string
+            for (int i = lineNumber - 1; i >= Math.Max(0, lineNumber - 10); i--)
+            {
+                var line = snapshot.GetLineFromLineNumber(i);
+                var lineText = line.GetText();
+                
+                // Check if this line contains a Serilog call with @"
+                if (SerilogCallDetector.IsSerilogCall(lineText) && lineText.Contains("@\""))
+                {
+                    // Check if the verbatim string is unclosed on this line
+                    var atIndex = lineText.IndexOf("@\"");
+                    if (atIndex >= 0)
+                    {
+                        // Count quotes after @" to see if string is closed
+                        var afterAt = lineText.Substring(atIndex + 2);
+                        int quoteCount = 0;
+                        bool inEscapedQuote = false;
+                        
+                        foreach (char c in afterAt)
+                        {
+                            if (c == '"')
+                            {
+                                if (inEscapedQuote)
+                                {
+                                    inEscapedQuote = false; // This is the second " of ""
+                                }
+                                else
+                                {
+                                    // Check if this is the start of ""
+                                    inEscapedQuote = true;
+                                    quoteCount++;
+                                }
+                            }
+                            else
+                            {
+                                inEscapedQuote = false;
+                            }
+                        }
+                        
+                        // If we have an odd number of quotes (or no closing quote), the string is unclosed
+                        if (quoteCount == 0 || !afterAt.TrimEnd().EndsWith("\""))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // If anything goes wrong, assume we're not in a verbatim string
+        }
+        
+        return false;
     }
 
     /// <summary>

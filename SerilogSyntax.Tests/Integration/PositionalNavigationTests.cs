@@ -16,9 +16,9 @@ public class PositionalNavigationTests
         // Arrange
         var properties = new[]
         {
-            new TemplateProperty { Name = "0", Type = PropertyType.Positional },
-            new TemplateProperty { Name = "1", Type = PropertyType.Positional },
-            new TemplateProperty { Name = "UserName", Type = PropertyType.Standard }
+            new TemplateProperty("0", 0, 1, PropertyType.Positional, 0, 1),
+            new TemplateProperty("1", 0, 1, PropertyType.Positional, 0, 1),
+            new TemplateProperty("UserName", 0, 8, PropertyType.Standard, 0, 1)
         }.ToList();
 
         var source = new SerilogSuggestedActionsSource(null);
@@ -72,7 +72,7 @@ public class PositionalNavigationTests
         // Arrange
         var properties = new[]
         {
-            new TemplateProperty { Name = "invalid", Type = PropertyType.Positional }
+            new TemplateProperty("invalid", 0, 7, PropertyType.Positional, 0, 1)
         }.ToList();
 
         var source = new SerilogSuggestedActionsSource(null);

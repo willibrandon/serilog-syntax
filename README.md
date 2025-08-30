@@ -14,6 +14,7 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 - **Alignment** highlighted in red: `{Name,10}`, `{Price,-8}`
 - **Positional parameters** highlighted in dark violet: `{0}`, `{1}`
 - **Property braces** highlighted in purple for structure
+- **Multi-line verbatim strings** fully supported with proper highlighting across lines
 
 ### 🔗 Smart Detection
 - Works with any logger variable name (not just `_logger` or `log`)
@@ -122,6 +123,12 @@ logger.LogInformation("Item: {Name,10} | Price: {Price,8:C}", name, price);
 
 // Positional parameters (legacy support)
 logger.LogWarning("Error {0} occurred in {1}", errorCode, methodName);
+
+// Multi-line verbatim strings
+logger.LogInformation(@"Processing report:
+    User: {UserName}
+    Department: {Department}
+    Generated: {Timestamp:yyyy-MM-dd}", userName, dept, DateTime.Now);
 
 // Configuration templates
 Log.Logger = new LoggerConfiguration()

@@ -65,6 +65,7 @@ public class ExampleService(ILogger<ExampleService> logger)
         await BasicLoggingExamples();
         await DestructuringExamples();
         await FormattingExamples();
+        await VerbatimStringExamples();
         await ErrorHandlingExamples();
         await PerformanceLoggingExamples();
     }
@@ -98,6 +99,14 @@ public class ExampleService(ILogger<ExampleService> logger)
         logger.LogInformation("Sales Report: Product {Product,-15} | Units: {Units,5} | Revenue: {Revenue,10:F2}", 
             "Premium Widget", 147, 4521.3456);
         
+        // Verbatim string with properties (demonstrates @"..." string support)
+        var filePath = @"C:\Users\alice\Documents";
+        logger.LogInformation(@"Processing files in path: {FilePath}
+Multiple lines are supported in verbatim strings
+With properties like {UserId} and {@Order}
+Even with ""escaped quotes"" in the template", 
+            filePath, userId, order);
+
         await Task.Delay(100);
     }
 
@@ -198,6 +207,54 @@ public class ExampleService(ILogger<ExampleService> logger)
         // Combined formatting and alignment
         var duration = TimeSpan.FromMilliseconds(1234.567);
         logger.LogInformation("Operation completed in {Duration,12:hh\\:mm\\:ss\\.fff}", duration);
+
+        await Task.Delay(100);
+    }
+
+    private async Task VerbatimStringExamples()
+    {
+        logger.LogInformation("=== Additional Verbatim String Tests ===");
+
+        // 1. Verbatim string with format specifiers and alignment
+        logger.LogInformation(@"Performance Report:
+    Time: {Timestamp:HH:mm:ss.fff}
+    Count: {Count,10:N0}
+    Status: {$Status}", DateTime.Now, 1234, "OK");
+
+        // 2. Verbatim string with positional parameters
+        var userId = 42;
+        logger.LogInformation(@"Database query:
+    SELECT * FROM Users WHERE Id = {0} AND Status = {1}
+    Parameters: {0}, {1}", userId, "Active", userId, "Active");
+
+        // 3. Mixed: Regular string followed by verbatim string
+        var appName = "SerilogExample";
+        var userContext = new { Name = "Admin", Role = "System" };
+        logger.LogInformation("Starting process...");
+        logger.LogInformation(@"Path: C:\Program Files\{AppName}\
+    Config: {ConfigFile}
+    User: {@UserContext}", appName, "app.config", userContext);
+
+        // 4. Verbatim string with many escaped quotes
+        var userName = "Alice";
+        logger.LogInformation(@"XML: <user name=""{UserName}"" id=""{UserId}"" />",
+            userName, userId);
+
+        // 5. Very long multi-line verbatim string
+        var version = "1.0.0";
+        var env = "Production";
+        var sessionId = Guid.NewGuid();
+        logger.LogInformation(@"
+===============================================
+Application: {AppName}
+Version: {Version}
+Environment: {Environment}
+===============================================
+User: {UserName} (ID: {UserId})
+Session: {SessionId}
+Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
+===============================================
+", appName, version, env, userName, userId, sessionId, DateTime.Now);
 
         await Task.Delay(100);
     }

@@ -29,6 +29,12 @@ This is a standalone console application that demonstrates all the features of t
 - **Alignment**: `{Name,10}`, `{Price,8:C}`
 - **Combined formatting**: `{Price,8:C2}`
 
+### Verbatim String Support
+- **Multi-line templates**: Properties highlighted across all lines in `@"..."` strings
+- **Escaped quotes**: Proper handling of `""` in verbatim strings
+- **Complex formatting**: Format specifiers and alignment work in verbatim strings
+- **Mixed content**: Verbatim strings with positional parameters and operators
+
 ### Configuration Templates
 - **Output templates** in Serilog configuration
 - File sink templates with custom formatting
