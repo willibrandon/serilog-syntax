@@ -154,14 +154,14 @@ public class RawStringLiteralTests
     [Fact]
     public void Parser_HandlesRawString_WithOnlyBraces()
     {
-        // Raw string with braces - "and" is actually a valid property name
+        // Raw string with braces - { and } is NOT a valid property because of internal spaces
+        // Serilog treats this as literal text, not a property
         var template = """Text with { and } but no properties""";
         
         var properties = _parser.Parse(template).ToList();
         
-        // Serilog accepts "and" as a valid property name
-        Assert.Single(properties);
-        Assert.Equal("and", properties[0].Name);  // Parser trims spaces from property names
+        // Should return no properties - spaces within property name make it invalid
+        Assert.Empty(properties);
     }
 
     [Fact]

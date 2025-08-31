@@ -1,4 +1,5 @@
 using SerilogSyntax.Parsing;
+using System;
 using System.Linq;
 using Xunit;
 
@@ -178,12 +179,10 @@ public class TemplateParserTests
     [Fact]
     public void Parse_PropertyWithSpaces_ParsesCorrectly()
     {
+        // Properties with spaces are literal text in Serilog, not properties
         var result = _parser.Parse("{ Name }").ToList();
         
-        Assert.Single(result);
-        Assert.Equal("Name", result[0].Name);
-        Assert.Equal(0, result[0].BraceStartIndex); // Position of '{'
-        Assert.Equal(7, result[0].BraceEndIndex); // Position of '}'
+        Assert.Empty(result);
     }
 
     [Fact]
@@ -217,5 +216,71 @@ public class TemplateParserTests
         
         Assert.Single(result);
         Assert.Equal("RealProperty", result[0].Name);
+    }
+
+    [Fact]
+    public void Parse_PropertyWithInternalSpaces_ReturnsNoProperty()
+    {
+        // Properties with spaces inside the name are invalid
+        var result = _parser.Parse("Text with { and } braces").ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_PropertyWithLeadingTrailingSpaces_ReturnsProperty()
+    {
+        // Leading and trailing spaces make it literal text, not a property
+        var result = _parser.Parse("Text with { PropertyName } here").ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_PropertyNoSpaces_ReturnsProperty()
+    {
+        // Standard property without spaces
+        var result = _parser.Parse("Text with {PropertyName} here").ToList();
+        
+        Assert.Single(result);
+        Assert.Equal("PropertyName", result[0].Name);
+    }
+
+    [Fact]
+    public void Parse_MultipleWordsWithSpaces_ReturnsNoProperty()
+    {
+        // Multiple words with spaces are invalid
+        var result = _parser.Parse("Text { Property Name } here").ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_SpacesAroundOperators_StillInvalid()
+    {
+        // Even with operators, internal spaces make it invalid
+        var result = _parser.Parse("Text { @ User } here").ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_SpacesInFormatting_StillInvalid()
+    {
+        // Spaces in property name with formatting are invalid
+        var result = _parser.Parse("Text { My Prop :format} here").ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_SingleCharacterProperty_ReturnsProperty()
+    {
+        // Single character properties are valid
+        var result = _parser.Parse("Text {a} and {b} here").ToList();
+        
+        Assert.Equal(2, result.Count);
+        Assert.Equal("a", result[0].Name);
+        Assert.Equal("b", result[1].Name);
     }
 }

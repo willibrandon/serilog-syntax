@@ -126,21 +126,12 @@ internal class TemplateParser
                         }
                         else if (char.IsWhiteSpace(ch))
                         {
-                            // Check if we have any following non-whitespace chars before }
-                            bool hasMoreContent = false;
-                            for (int j = i + 1; j < template.Length; j++)
+                            // If we've seen any property name characters already,
+                            // this space makes the property invalid
+                            if (recovery.PropertyNameStart != -1 && i > recovery.PropertyNameStart)
                             {
-                                if (template[j] == '}')
-                                    break;
-                                if (!char.IsWhiteSpace(template[j]))
-                                {
-                                    hasMoreContent = true;
-                                    break;
-                                }
-                            }
-                            if (hasMoreContent)
-                            {
-                                // Invalid - property names can't contain spaces
+                                // We've already started collecting a property name
+                                // Any space in the middle makes it invalid
                                 // Try to recover
                                 var recovered = recovery.TryRecover(template, i);
                                 if (recovered.HasValue)
@@ -150,7 +141,7 @@ internal class TemplateParser
                                 recovery.Reset();
                                 state = ParseState.Outside;
                             }
-                            // Otherwise, it's trailing whitespace - continue parsing
+                            // Otherwise it's leading whitespace, which is OK - just continue
                         }
                         else if (recovery.PropertyType == PropertyType.Positional && !char.IsDigit(ch))
                         {
@@ -382,8 +373,14 @@ internal class TemplateParser
         if (propertyLength <= 0)
             return null;
 
-        var name = template.Substring(propertyStart, propertyLength).Trim();
+        var rawName = template.Substring(propertyStart, propertyLength);
+        var name = rawName.Trim();
         if (string.IsNullOrEmpty(name))
+            return null;
+        
+        // The state machine should have already rejected properties with internal spaces
+        // But as a safety check, verify the trimmed name doesn't contain spaces
+        if (name.Contains(" "))
             return null;
         
         string formatSpec = null;

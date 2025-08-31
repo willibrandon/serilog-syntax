@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2025-08-31
+
+### Fixed
+- Parser now correctly rejects properties with internal spaces to match Serilog behavior
+  - `{ and }` is now treated as literal text, not a property named "and"
+  - `{PropertyName}` remains valid
+  - `{ PropertyName }` is now correctly treated as literal text
+  - Fixes compatibility issue where extension was highlighting invalid Serilog syntax
+
 ## [0.4.1] - 2025-08-30
 
 ### Fixed
@@ -156,6 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.4.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.2
 [0.4.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.1
 [0.4.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.0
 [0.3.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.3.0
