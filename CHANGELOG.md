@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2025-08-30
+
+### Fixed
+- Parser now correctly rejects properties with leading or trailing spaces
+  - `{ PropName}` is now treated as literal text (leading space)
+  - `{PropName }` is now treated as literal text (trailing space)
+  - `{ @User}` and `{ $Value}` are also rejected (leading space with operators)
+  - Only `{PropName}` without any spaces is valid
+  - Fixes issue where extension was incorrectly highlighting invalid Serilog syntax
+
 ## [0.4.2] - 2025-08-30
 
 ### Fixed
@@ -165,6 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.4.3]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.3
 [0.4.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.2
 [0.4.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.1
 [0.4.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.0

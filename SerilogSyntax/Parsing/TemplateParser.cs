@@ -51,33 +51,70 @@ internal class TemplateParser
                     case ParseState.OpenBrace:
                         if (char.IsWhiteSpace(ch))
                         {
-                            // Skip leading whitespace
+                            // Mark that we've seen leading whitespace
+                            recovery.HasLeadingWhitespace = true;
                             continue;
                         }
                         else if (ch == '@')
                         {
-                            recovery.PropertyType = PropertyType.Destructured;
-                            recovery.OperatorIndex = i;
-                            recovery.PropertyNameStart = i + 1;
-                            state = ParseState.Property;
+                            // If we have leading whitespace, invalid property
+                            if (recovery.HasLeadingWhitespace)
+                            {
+                                recovery.Reset();
+                                state = ParseState.Outside;
+                            }
+                            else
+                            {
+                                recovery.PropertyType = PropertyType.Destructured;
+                                recovery.OperatorIndex = i;
+                                recovery.PropertyNameStart = i + 1;
+                                state = ParseState.Property;
+                            }
                         }
                         else if (ch == '$')
                         {
-                            recovery.PropertyType = PropertyType.Stringified;
-                            recovery.OperatorIndex = i;
-                            recovery.PropertyNameStart = i + 1;
-                            state = ParseState.Property;
+                            // If we have leading whitespace, invalid property
+                            if (recovery.HasLeadingWhitespace)
+                            {
+                                recovery.Reset();
+                                state = ParseState.Outside;
+                            }
+                            else
+                            {
+                                recovery.PropertyType = PropertyType.Stringified;
+                                recovery.OperatorIndex = i;
+                                recovery.PropertyNameStart = i + 1;
+                                state = ParseState.Property;
+                            }
                         }
                         else if (char.IsDigit(ch))
                         {
-                            recovery.PropertyType = PropertyType.Positional;
-                            recovery.PropertyNameStart = i;
-                            state = ParseState.Property;
+                            // If we have leading whitespace, invalid property
+                            if (recovery.HasLeadingWhitespace)
+                            {
+                                recovery.Reset();
+                                state = ParseState.Outside;
+                            }
+                            else
+                            {
+                                recovery.PropertyType = PropertyType.Positional;
+                                recovery.PropertyNameStart = i;
+                                state = ParseState.Property;
+                            }
                         }
                         else if (IsValidPropertyStartChar(ch))
                         {
-                            recovery.PropertyNameStart = i;
-                            state = ParseState.Property;
+                            // If we have leading whitespace, invalid property
+                            if (recovery.HasLeadingWhitespace)
+                            {
+                                recovery.Reset();
+                                state = ParseState.Outside;
+                            }
+                            else
+                            {
+                                recovery.PropertyNameStart = i;
+                                state = ParseState.Property;
+                            }
                         }
                         else if (ch == '}')
                         {
@@ -274,6 +311,11 @@ internal class TemplateParser
         public int OperatorIndex { get; set; } = -1;
         
         /// <summary>
+        /// Tracks if we've seen whitespace after the opening brace.
+        /// </summary>
+        public bool HasLeadingWhitespace { get; set; } = false;
+        
+        /// <summary>
         /// Starts tracking a new property at the given position.
         /// </summary>
         public void StartProperty(int position)
@@ -297,6 +339,7 @@ internal class TemplateParser
             FormatStart = -1;
             AlignmentStart = -1;
             OperatorIndex = -1;
+            HasLeadingWhitespace = false;
         }
         
         /// <summary>

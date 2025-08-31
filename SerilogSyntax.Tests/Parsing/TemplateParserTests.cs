@@ -283,4 +283,33 @@ public class TemplateParserTests
         Assert.Equal("a", result[0].Name);
         Assert.Equal("b", result[1].Name);
     }
+
+    [Fact]
+    public void Parse_PropertyWithLeadingSpace_ReturnsNoProperty()
+    {
+        // Properties with leading space are invalid
+        var result = _parser.Parse("Text with { PropName} here").ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_PropertyWithTrailingSpace_ReturnsNoProperty()
+    {
+        // Properties with trailing space are invalid
+        var result = _parser.Parse("Text with {PropName } here").ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_LeadingSpaceWithOperators_ReturnsNoProperty()
+    {
+        // Leading space makes operators invalid too
+        var result1 = _parser.Parse("Text with { @User} here").ToList();
+        var result2 = _parser.Parse("Text with { $Value} here").ToList();
+        
+        Assert.Empty(result1);
+        Assert.Empty(result2);
+    }
 }
