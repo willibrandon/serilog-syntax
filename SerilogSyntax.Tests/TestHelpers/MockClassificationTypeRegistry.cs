@@ -18,14 +18,14 @@ public class MockClassificationTypeRegistry : IClassificationTypeRegistryService
     /// </summary>
     private MockClassificationTypeRegistry()
     {
-        // Register the Serilog classification types
+        // Register the Serilog classification types (must match SerilogClassificationTypes constants)
         RegisterType("serilog.property.name");
-        RegisterType("serilog.property.destructure.operator");
-        RegisterType("serilog.property.stringify.operator");
-        RegisterType("serilog.property.format.specifier");
-        RegisterType("serilog.property.brace");
-        RegisterType("serilog.property.positional.index");
-        RegisterType("serilog.property.alignment");
+        RegisterType("serilog.operator.destructure");
+        RegisterType("serilog.operator.stringify");
+        RegisterType("serilog.format");
+        RegisterType("serilog.brace");
+        RegisterType("serilog.index");
+        RegisterType("serilog.alignment");
     }
     
     /// <summary>

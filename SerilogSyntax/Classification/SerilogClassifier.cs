@@ -256,7 +256,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 if (text.Contains("{") && text.Contains("}"))
                 {
                     // Check if we're inside a multi-line string
-                    
+                    var currentLine = span.Snapshot.GetLineFromPosition(span.Start);
+
                     // Look backwards to see if we're inside an unclosed verbatim or raw string
                     bool insideString = false;
                     
@@ -273,15 +274,32 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     
                     if (insideString)
                     {
-                        // We're inside a multi-line string! Parse the current span for properties
-                        var properties = GetCachedTemplateProperties(text);
+                        // Use Roslyn syntax tree analysis to determine if this string literal
+                        // is actually part of a Serilog method call or just a string argument
+                        // containing Serilog-like text (like in test code)
                         
-                        // Create classifications for properties in this span
-                        foreach (var property in properties)
+                        // Find the actual string literal position when we're inside a multi-line string
+                        int positionToCheck = FindStringLiteralPosition(span.Snapshot, span.Start, currentLine);
+                        
+                        bool isActuallySerilogTemplate = SyntaxTreeAnalyzer.IsPositionInsideSerilogTemplate(
+                            span.Snapshot, positionToCheck);
+                        
+                        if (isActuallySerilogTemplate)
                         {
-                            // Properties are relative to the start of this span's text
-                            int offsetInSnapshot = span.Start;
-                            AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
+                            // We're inside a multi-line string that is actually a Serilog template
+                            var properties = GetCachedTemplateProperties(text);
+                            
+                            // Create classifications for properties in this span
+                            foreach (var property in properties)
+                            {
+                                // Properties are relative to the start of this span's text
+                                int offsetInSnapshot = span.Start;
+                                AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
+                            }
+                        }
+                        else
+                        {
+                            // Skipping property classification for line - not a real Serilog template
                         }
                     }
                 }
@@ -293,8 +311,21 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // Find Serilog method calls
             var matches = SerilogCallDetector.FindAllSerilogCalls(text);
             
+            var currentLine2 = span.Snapshot.GetLineFromPosition(span.Start);
+            
             foreach (Match match in matches)
             {
+                // Use SyntaxTreeAnalyzer to determine if this match is in a real Serilog call
+                int matchPosition = span.Start + match.Index;
+                bool isActuallySerilogCall = SyntaxTreeAnalyzer.IsPositionInsideSerilogTemplate(
+                    span.Snapshot, matchPosition);
+                
+                if (!isActuallySerilogCall)
+                {
+                    // Skipping match - not a real Serilog call
+                    continue;
+                }
+                
                 // Find the string literal after the method call
                 int searchStart = match.Index + match.Length;
                 var stringLiteral = FindStringLiteral(text, searchStart, span.Start);
@@ -706,7 +737,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
             var snapshot = span.Snapshot;
             var currentLine = snapshot.GetLineFromPosition(span.Start);
             var lineNumber = currentLine.LineNumber;
-            
+
             // Look backwards up to MaxVerbatimStringLookbackLines to find an unclosed verbatim string
             for (int i = lineNumber - 1; i >= Math.Max(0, lineNumber - MaxVerbatimStringLookbackLines); i--)
             {
@@ -747,9 +778,14 @@ internal class SerilogClassifier : IClassifier, IDisposable
                         }
                         
                         // If we have an odd number of quotes (or no closing quote), the string is unclosed
-                        if (quoteCount == 0 || !afterAt.TrimEnd().EndsWith("\""))
+                        if (quoteCount == 0 || afterAt.Trim().Length == 0 || !afterAt.TrimEnd().EndsWith("\""))
                         {
+                            // Return true - erbatim string is unclosed
                             return true;
+                        }
+                        else
+                        {
+                            // Verbatim string is closed on same line
                         }
                     }
                 }
@@ -759,7 +795,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
         {
             // If anything goes wrong, assume we're not in a verbatim string
         }
-        
+
+        // Returning false - not inside verbatim string
         return false;
     }
 
@@ -784,16 +821,36 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 return cachedResult;
             }
             
-            // Look at current line and backwards to find potential raw string starts
-            // Start from current line to handle case where raw string starts on this line
-            for (int i = lineNumber; i >= Math.Max(0, lineNumber - MaxLookbackLines); i--)
+            // Look backwards from the current line to find any raw string that might contain it
+            // We need to check if lineNumber is inside any raw string literal
+            // Check all lines from the start of the lookback range up to the current line
+            bool foundContainingRawString = false;
+            bool foundSerilogRawString = false;
+            var processedRanges = new List<(int start, int end)>(); // Track processed raw string ranges
+            
+            for (int i = Math.Max(0, lineNumber - MaxLookbackLines); i <= lineNumber; i++)
             {
+                // Skip lines that are already inside a processed raw string
+                bool skipLine = false;
+                foreach (var (start, end) in processedRanges)
+                {
+                    if (i > start && i <= end)
+                    {
+                        skipLine = true;
+                        break;
+                    }
+                }
+                if (skipLine) continue;
+                
                 var line = snapshot.GetLineFromLineNumber(i);
                 var lineText = line.GetText();
                 
-                // Skip lines without triple quotes for performance
+                // Only process lines that contain """ to find raw string boundaries
                 if (!lineText.Contains("\"\"\""))
+                {
+                    // Skip this line but continue looking backwards
                     continue;
+                }
                 
                 // Find all occurrences of """ in this line
                 int index = 0;
@@ -810,21 +867,29 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     
                     if (quoteCount >= 3)
                     {
-                        // Check if this could be a Serilog raw string
-                        // The line must contain a Serilog call before the quotes
-                        var textBeforeQuotes = lineText.Substring(0, index);
-                        bool isSerilogCall = index > 0 && SerilogCallDetector.IsSerilogCall(textBeforeQuotes);
+                        // Check where this raw string closes
+                        int closingLine = GetRawStringClosingLine(snapshot, i, quoteCount);
                         
-                        if (isSerilogCall)
+                        // Record this raw string range to avoid processing lines inside it
+                        if (closingLine != -1)
                         {
-                            // Check where this raw string closes
-                            int closingLine = GetRawStringClosingLine(snapshot, i, quoteCount);
+                            processedRanges.Add((i, closingLine));
+                        }
+                        
+                        // Check if lineNumber is inside this raw string
+                        if (closingLine == -1 || closingLine > lineNumber)
+                        {
+                            // lineNumber is inside this raw string that starts on line i
+                            foundContainingRawString = true;
                             
-                            // If closing line is -1 (not closed) or after current line, we're inside
-                            if (closingLine == -1 || closingLine > lineNumber)
+                            // Check if the line that STARTS the raw string (line i) is a Serilog call
+                            var textBeforeQuotes = lineText.Substring(0, index);
+                            bool isSerilogCall = index > 0 && SerilogCallDetector.IsSerilogCall(textBeforeQuotes);
+                            
+                            if (isSerilogCall)
                             {
-                                _rawStringRegionCache.TryAdd(lineNumber, true);
-                                return true;
+                                foundSerilogRawString = true;
+                                // Don't return immediately, check if there are other containing strings
                             }
                         }
                     }
@@ -832,6 +897,22 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     index = pos;
                 }
             }
+            
+            // After checking all potential containing raw strings:
+            if (foundSerilogRawString)
+            {
+                // Found at least one Serilog raw string containing this line
+                _rawStringRegionCache.TryAdd(lineNumber, true);
+                return true;
+            }
+            else if (foundContainingRawString)
+            {
+                // Found containing raw strings but none were Serilog calls
+                // This line is inside documentation strings only
+                _rawStringRegionCache.TryAdd(lineNumber, false);
+                return false;
+            }
+            // If no containing raw strings found, continue with normal processing
         }
         catch (Exception ex)
         {
@@ -953,6 +1034,69 @@ internal class SerilogClassifier : IClassifier, IDisposable
             
             // No closing quotes found on same line - raw string is unclosed
             return -1;
+        }
+    }
+
+    /// <summary>
+    /// Finds the position of the actual string literal when we're inside a multi-line string.
+    /// This is needed because line-by-line processing passes positions that may not be inside
+    /// the string literal itself, but inside the content of a multi-line string.
+    /// </summary>
+    private int FindStringLiteralPosition(ITextSnapshot snapshot, int currentPosition, ITextSnapshotLine currentLine)
+    {
+        try
+        {
+            // For verbatim strings, search backwards to find the @" or @"""
+            var currentLineSpan = new SnapshotSpan(currentLine.Start, currentLine.End);
+            if (IsInsideVerbatimString(currentLineSpan))
+            {
+                // Search backwards from current line to find the start of verbatim string
+                for (int lineNum = currentLine.LineNumber; lineNum >= Math.Max(0, currentLine.LineNumber - 10); lineNum--)
+                {
+                    var line = snapshot.GetLineFromLineNumber(lineNum);
+                    var lineText = line.GetText();
+                    
+                    // Look for @" or @"""
+                    int atIndex = lineText.IndexOf("@\"");
+                    if (atIndex >= 0)
+                    {
+                        // Return position just after the opening quote
+                        int stringLiteralPosition = line.Start + atIndex + 2;
+
+                        // Found verbatim string
+                        return stringLiteralPosition;
+                    }
+                }
+            }
+            
+            // For raw strings, search backwards to find the """
+            if (IsInsideRawStringLiteral(currentLineSpan))
+            {
+                // Search backwards to find the raw string start
+                for (int lineNum = currentLine.LineNumber; lineNum >= Math.Max(0, currentLine.LineNumber - 10); lineNum--)
+                {
+                    var line = snapshot.GetLineFromLineNumber(lineNum);
+                    var lineText = line.GetText();
+                    
+                    // Look for """
+                    int rawStringIndex = lineText.IndexOf("\"\"\"");
+                    if (rawStringIndex >= 0)
+                    {
+                        // Return position just after the opening quotes
+                        int stringLiteralPosition = line.Start + rawStringIndex + 3;
+
+                        // Found raw string
+                        return stringLiteralPosition;
+                    }
+                }
+            }
+            
+            // If we can't find the string literal, return the current position
+            return currentPosition;
+        }
+        catch
+        {
+            return currentPosition;
         }
     }
 

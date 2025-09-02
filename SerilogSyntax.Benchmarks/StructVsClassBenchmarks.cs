@@ -1,5 +1,7 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Toolchains.InProcess.Emit;
 using SerilogSyntax.Parsing;
 using System;
 using System.Collections.Generic;
@@ -12,10 +14,19 @@ namespace SerilogSyntax.Benchmarks;
 /// Results showed classes perform better on .NET Framework 4.7.2 x86, leading to reverting the struct optimization.
 /// Kept for historical reference and future testing on different platforms.
 /// </summary>
+[Config(typeof(Config))]
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net472)]
 public class StructVsClassBenchmarks
 {
+    private class Config : ManualConfig
+    {
+        public Config()
+        {
+            AddJob(Job.Default
+                .WithToolchain(InProcessEmitToolchain.Instance));
+        }
+    }
+    
     private TemplateParser _parser;
     private string _complexTemplate;
     

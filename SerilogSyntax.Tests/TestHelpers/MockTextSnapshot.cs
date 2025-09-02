@@ -97,7 +97,7 @@ public class MockTextSnapshot : ITextSnapshot
     {
         foreach (var line in _lines)
         {
-            if (position >= line.Start && position <= line.EndIncludingLineBreak)
+            if (position >= line.Start.Position && position < line.EndIncludingLineBreak.Position)
                 return line;
         }
         return _lines.LastOrDefault() ?? throw new ArgumentOutOfRangeException(nameof(position));

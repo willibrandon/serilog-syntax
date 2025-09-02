@@ -50,6 +50,7 @@
     <Compile Include="Classification\SerilogClassificationTypes.cs" />
     <Compile Include="Classification\SerilogClassifier.cs" />
     <Compile Include="Classification\SerilogClassifierProvider.cs" />
+    <Compile Include="Classification\SyntaxTreeAnalyzer.cs" />
     <Compile Include="Diagnostics\DiagnosticLogger.cs" />
     <Compile Include="Navigation\SerilogNavigationProvider.cs" />
     <Compile Include="Parsing\TemplateParser.cs" />
@@ -90,6 +91,8 @@
     <PackageReference Include="Microsoft.VisualStudio.Language.StandardClassification" Version="17.14.249" />
     <PackageReference Include="Microsoft.VisualStudio.Language.Intellisense" Version="17.14.249" />
     <PackageReference Include="Microsoft.VisualStudio.Text.UI.Wpf" Version="17.14.249" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != ''" />

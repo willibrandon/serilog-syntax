@@ -1,5 +1,7 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Toolchains.InProcess.Emit;
 using SerilogSyntax.Utilities;
 using System.Collections.Generic;
 
@@ -9,10 +11,19 @@ namespace SerilogSyntax.Benchmarks;
 /// Benchmarks for SerilogCallDetector performance.
 /// Validates the effectiveness of pre-check optimization and caching.
 /// </summary>
+[Config(typeof(Config))]
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net472)]
 public class CallDetectorBenchmarks
 {
+    private class Config : ManualConfig
+    {
+        public Config()
+        {
+            AddJob(Job.Default
+                .WithToolchain(InProcessEmitToolchain.Instance));
+        }
+    }
+    
     private List<string> _serilogLines;
     private List<string> _nonSerilogLines;
     private List<string> _mixedLines;

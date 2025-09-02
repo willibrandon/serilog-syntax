@@ -1,5 +1,7 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Toolchains.InProcess.Emit;
 using SerilogSyntax.Parsing;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,10 +12,19 @@ namespace SerilogSyntax.Benchmarks;
 /// Benchmarks for TemplateParser performance across various template complexities.
 /// Tests simple, complex, malformed, and verbatim string templates.
 /// </summary>
+[Config(typeof(Config))]
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net472)]
 public class ParserBenchmarks
 {
+    private class Config : ManualConfig
+    {
+        public Config()
+        {
+            AddJob(Job.Default
+                .WithToolchain(InProcessEmitToolchain.Instance));
+        }
+    }
+    
     private TemplateParser _parser;
     private List<string> _templates;
     

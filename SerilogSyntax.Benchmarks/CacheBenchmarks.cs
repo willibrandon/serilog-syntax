@@ -1,5 +1,7 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Toolchains.InProcess.Emit;
 using SerilogSyntax.Utilities;
 using System.Collections.Generic;
 
@@ -9,10 +11,19 @@ namespace SerilogSyntax.Benchmarks;
 /// Benchmarks for LRU cache performance under various scenarios.
 /// Tests cache hits, misses, additions, evictions, and mixed operations.
 /// </summary>
+[Config(typeof(Config))]
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net472)]
 public class CacheBenchmarks
 {
+    private class Config : ManualConfig
+    {
+        public Config()
+        {
+            AddJob(Job.Default
+                .WithToolchain(InProcessEmitToolchain.Instance));
+        }
+    }
+    
     private LruCache<string, bool> _cache;
     private List<string> _cacheKeys;
     
