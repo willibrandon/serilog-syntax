@@ -221,6 +221,19 @@ internal class TemplateParser
                             recovery.FormatStart = i;
                             state = ParseState.Format;
                         }
+                        else if (ch == '|' || ch == '{')
+                        {
+                            // Pipe character or opening brace in alignment means we've gone too far - unclosed property
+                            // Reset without yielding a property
+                            recovery.Reset();
+                            state = ParseState.Outside;
+                            
+                            // If we hit an opening brace, step back so it can be processed as a new property
+                            if (ch == '{')
+                            {
+                                i--;
+                            }
+                        }
                         break;
 
                     case ParseState.Format:
@@ -241,6 +254,19 @@ internal class TemplateParser
                                 }
                                 recovery.Reset();
                                 state = ParseState.Outside;
+                            }
+                        }
+                        else if (ch == '|' || ch == '{')
+                        {
+                            // Pipe character or opening brace in format specifier means we've gone too far - unclosed property
+                            // Reset without yielding a property
+                            recovery.Reset();
+                            state = ParseState.Outside;
+                            
+                            // If we hit an opening brace, step back so it can be processed as a new property
+                            if (ch == '{')
+                            {
+                                i--;
                             }
                         }
                         break;
@@ -369,11 +395,30 @@ internal class TemplateParser
             if (!HasPartialProperty())
                 return null;
                 
-            // Create a property from what we have so far
-            // This allows highlighting of incomplete properties during typing
+            // If we have format or alignment specifiers, the property is malformed
+            // and likely to cause spillover - don't create a partial property
+            if (AlignmentStart > 0 || FormatStart > 0)
+            {
+                return null;
+            }
+            
+            // For simple unclosed properties (just {PropertyName), allow them for IDE experience
             var length = Math.Min(template.Length - PropertyNameStart, 20);
+            if (length <= 0)
+                return null;
+                
+            var name = template.Substring(PropertyNameStart, length);
+            
+            // Check for any spillover patterns
+            if (name.Contains(" ") || name.Contains(",") || name.Contains(":"))
+            {
+                // If we see spaces, commas, or colons in what should be a simple property name,
+                // it's likely we've consumed too much - don't create a property
+                return null;
+            }
+            
             return new TemplateProperty(
-                template.Substring(PropertyNameStart, length),
+                name,
                 PropertyNameStart,
                 length,
                 PropertyType,

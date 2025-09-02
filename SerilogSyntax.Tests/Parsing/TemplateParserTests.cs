@@ -294,6 +294,94 @@ public class TemplateParserTests
     }
 
     [Fact]
+    public void Parse_UnclosedDestructuringProperty_ShouldNotSpillOver()
+    {
+        // Bug fix: Unclosed destructuring property should not be recognized as a valid property
+        var template = "Performance metrics {@PerformanceData, performance);";
+        var result = _parser.Parse(template).ToList();
+        
+        // The parser should not recognize {@PerformanceData as a valid property since it's unclosed
+        // This prevents highlight spillover in the editor
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_UnclosedStandardProperty_ReturnsNoProperty()
+    {
+        // Unclosed standard property should not be recognized
+        var template = "User {Username logged in";
+        var result = _parser.Parse(template).ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_UnclosedPropertyWithFormat_ReturnsNoProperty()
+    {
+        // Unclosed property with format specifier should not be recognized
+        var template = "Time {Timestamp:HH:mm:ss at location";
+        var result = _parser.Parse(template).ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_UnclosedStringifiedProperty_ReturnsNoProperty()
+    {
+        // Unclosed stringified property should not be recognized
+        var template = "Value {$Amount in dollars";
+        var result = _parser.Parse(template).ToList();
+        
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Parse_UnclosedPropertyWithFormatSpecifier_PreventSpillover()
+    {
+        // When format specifier is unclosed (missing }), it should not highlight beyond the property
+        var template = "Processing order {@Order} at {Timestamp:HH:mm:ss | Status: {Status,10}";
+        var result = _parser.Parse(template).ToList();
+        
+        // Should find {@Order} and {Status,10} but NOT {Timestamp:HH:mm:ss with spillover
+        Assert.Equal(2, result.Count);
+        Assert.Equal("Order", result[0].Name);
+        Assert.Equal("Status", result[1].Name);
+        
+        // Verify no property contains the pipe character or "Status" text
+        Assert.DoesNotContain(result, p => p.Name.Contains("|"));
+        Assert.DoesNotContain(result, p => p.FormatSpecifier?.Contains("|") == true);
+    }
+
+    [Fact]
+    public void Parse_UnclosedPropertyWithAlignment_PreventSpillover()
+    {
+        // When alignment is unclosed (missing }), it should not highlight beyond the property
+        var template = "Item: {Name,10 | Price: {Price,8:C} | Stock: {Stock,3}";
+        var result = _parser.Parse(template).ToList();
+        
+        // Should find {Price,8:C} and {Stock,3} but NOT {Name,10 with spillover
+        Assert.Equal(2, result.Count);
+        Assert.Equal("Price", result[0].Name);
+        Assert.Equal("Stock", result[1].Name);
+        
+        // Verify no property contains the pipe character
+        Assert.DoesNotContain(result, p => p.Name.Contains("|"));
+        Assert.DoesNotContain(result, p => p.Alignment?.Contains("|") == true);
+    }
+
+    [Fact]
+    public void Parse_MultipleUnclosedProperties_HandleEachCorrectly()
+    {
+        // Multiple unclosed properties in one template
+        var template = "Start {Prop1:format middle {Prop2,5 end {Prop3}";
+        var result = _parser.Parse(template).ToList();
+        
+        // Should only find {Prop3} which is properly closed
+        Assert.Single(result);
+        Assert.Equal("Prop3", result[0].Name);
+    }
+
+    [Fact]
     public void Parse_PropertyWithTrailingSpace_ReturnsNoProperty()
     {
         // Properties with trailing space are invalid

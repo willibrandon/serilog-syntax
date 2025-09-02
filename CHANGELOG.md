@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2025-09-01
+
+### Fixed
+- Unclosed properties with format or alignment specifiers no longer cause highlight spillover
+  - Properties like `{@PerformanceData,` without closing brace no longer highlight subsequent text
+  - Format specifiers like `{Timestamp:HH:mm:ss` properly stop at pipes and opening braces
+  - Alignment specifiers like `{Name,10` properly stop at pipes and opening braces
+  - Multiple unclosed properties in a template are handled independently
+  - Prevents visual confusion when typing incomplete templates
+
 ## [0.4.4] - 2025-09-01
 
 ### Fixed
