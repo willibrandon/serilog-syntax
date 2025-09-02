@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2025-09-01
+
+### Fixed
+- False positive detection in strings containing Serilog-like text
+  - Properties in test mock data (e.g., `MockTextBuffer.Create(@"logger.LogInformation...")`) no longer highlighted
+  - Documentation strings with logger examples no longer treated as Serilog calls
+  - Regular string assignments like `var msg = "User {Name} logged in"` no longer classified
+
 ## [0.4.3] - 2025-08-30
 
 ### Fixed
