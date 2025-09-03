@@ -8,14 +8,26 @@ param(
     [switch]$QuickRun                    # Use short job for faster results
 )
 
-# Build first unless -NoBuild is specified
-if (-not $NoBuild) {
-    Write-Host "Building solution in Release mode..." -ForegroundColor Cyan
-    & powershell -ExecutionPolicy Bypass -File build.ps1 -Configuration $Configuration
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+# Determine the root directory (parent of scripts folder or current directory)
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ($scriptDir -match "scripts$") {
+    $rootDir = Split-Path -Parent $scriptDir
+} else {
+    $rootDir = $scriptDir
 }
+
+# Change to root directory for benchmark
+Push-Location $rootDir
+try {
+    # Build first unless -NoBuild is specified
+    if (-not $NoBuild) {
+        Write-Host "Building solution in Release mode..." -ForegroundColor Cyan
+        $buildScript = Join-Path $scriptDir "build.ps1"
+        & powershell -ExecutionPolicy Bypass -File $buildScript -Configuration $Configuration
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    }
 
 # Run benchmarks
 Write-Host "`nRunning benchmarks..." -ForegroundColor Cyan
@@ -51,10 +63,13 @@ if (-not $Filter) {
 # Execute benchmarks
 & $benchmarkExe @args
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "`nBenchmarks completed successfully!" -ForegroundColor Green
-    Write-Host "Results saved to: SerilogSyntax.Benchmarks\BenchmarkDotNet.Artifacts\results\" -ForegroundColor Gray
-} else {
-    Write-Host "`nBenchmarks failed!" -ForegroundColor Red
-    exit $LASTEXITCODE
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "`nBenchmarks completed successfully!" -ForegroundColor Green
+        Write-Host "Results saved to: SerilogSyntax.Benchmarks\BenchmarkDotNet.Artifacts\results\" -ForegroundColor Gray
+    } else {
+        Write-Host "`nBenchmarks failed!" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+} finally {
+    Pop-Location
 }

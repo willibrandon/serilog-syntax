@@ -18,7 +18,7 @@ public class MockClassificationTypeRegistry : IClassificationTypeRegistryService
     /// </summary>
     private MockClassificationTypeRegistry()
     {
-        // Register the Serilog classification types (must match SerilogClassificationTypes constants)
+        // Register the Serilog template classification types (must match SerilogClassificationTypes constants)
         RegisterType("serilog.property.name");
         RegisterType("serilog.operator.destructure");
         RegisterType("serilog.operator.stringify");
@@ -26,6 +26,15 @@ public class MockClassificationTypeRegistry : IClassificationTypeRegistryService
         RegisterType("serilog.brace");
         RegisterType("serilog.index");
         RegisterType("serilog.alignment");
+        
+        // Register the Serilog expression classification types
+        RegisterType("serilog.expression.property");
+        RegisterType("serilog.expression.operator");
+        RegisterType("serilog.expression.function");
+        RegisterType("serilog.expression.keyword");
+        RegisterType("serilog.expression.literal");
+        RegisterType("serilog.expression.directive");
+        RegisterType("serilog.expression.builtin");
     }
     
     /// <summary>

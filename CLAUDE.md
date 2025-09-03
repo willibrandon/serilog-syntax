@@ -8,50 +8,96 @@ This is a Visual Studio extension (VSIX) project called SerilogSyntax that targe
 
 ## Build and Development Commands
 
-### Building the Project
+All build scripts are located in the `scripts/` folder and are available in both PowerShell and Bash versions.
+
+### Using PowerShell (Windows)
 ```powershell
 # Build using the build script (recommended)
-.\build.ps1
+.\scripts\build.ps1
 
 # Build for release
-.\build.ps1 -Configuration Release
+.\scripts\build.ps1 -Configuration Release
 
 # Build with different verbosity levels
-.\build.ps1 -Verbosity detailed
-.\build.ps1 -Verbosity diagnostic
+.\scripts\build.ps1 -Verbosity detailed
+.\scripts\build.ps1 -Verbosity diagnostic
 
-# Clean and rebuild
-msbuild SerilogSyntax.sln /t:Clean
-.\build.ps1
-```
-
-### Running Tests
-```powershell
 # Run all tests
-.\test.ps1
+.\scripts\test.ps1
 
 # Run tests without rebuilding
-.\test.ps1 -NoBuild
+.\scripts\test.ps1 -NoBuild
 
 # Run specific tests (filter by name)
-.\test.ps1 -Filter "TestMethodName"
+.\scripts\test.ps1 -Filter "TestMethodName"
 
-# Run release tests
-.\test.ps1 -Configuration Release
+# Run tests multiple times to detect flaky tests
+.\scripts\test.ps1 -Iterations 10
+
+# Run benchmarks
+.\scripts\benchmark.ps1 -Filter "Parser*"
+
+# Deploy to installed VS instances
+.\scripts\deploy.ps1 -RestartVS
+
+# Build and deploy in one step
+.\scripts\quick-deploy.ps1
 ```
 
-### Running Benchmarks
-```powershell
-# Run all benchmarks
-.\benchmark.ps1
+### Using Bash (WSL, Linux, macOS)
+```bash
+# Build using the build script
+./scripts/build.sh
 
-# Run specific benchmark category
-.\benchmark.ps1 -Filter "Parser*"
-.\benchmark.ps1 -Filter "Cache*"
+# Build for release
+./scripts/build.sh --configuration Release
 
-# Run benchmarks in Release mode (default)
-.\benchmark.ps1 -Configuration Release
+# Build with different verbosity levels
+./scripts/build.sh --verbosity detailed
+./scripts/build.sh --verbosity diagnostic
+
+# Run all tests
+./scripts/test.sh
+
+# Run tests without rebuilding
+./scripts/test.sh --no-build
+
+# Run specific tests (filter by name)
+./scripts/test.sh --filter "TestMethodName"
+
+# Run tests multiple times to detect flaky tests
+./scripts/test.sh --iterations 10
+
+# Run benchmarks
+./scripts/benchmark.sh --filter "Parser*"
+
+# Deploy to installed VS instances (Windows only)
+./scripts/deploy.sh --restart-vs
+
+# Build and deploy in one step (Windows only)
+./scripts/quick-deploy.sh
 ```
+
+### Script Options
+
+#### Build Scripts (build.ps1 / build.sh)
+- `-Configuration` / `--configuration`: Debug (default) or Release
+- `-Verbosity` / `--verbosity`: quiet, minimal, normal (default), detailed, diagnostic
+
+#### Test Scripts (test.ps1 / test.sh)
+- `-Configuration` / `--configuration`: Debug (default) or Release
+- `-Filter` / `--filter`: Filter tests by name
+- `-NoBuild` / `--no-build`: Skip building before tests
+- `-Iterations` / `--iterations`: Run tests N times to detect flaky tests (default: 1)
+
+#### Benchmark Scripts (benchmark.ps1 / benchmark.sh)
+- `-Configuration` / `--configuration`: Debug or Release (default)
+- `-Filter` / `--filter`: Filter benchmarks by name
+
+#### Deploy Scripts (deploy.ps1 / deploy.sh) - Windows only
+- `-Configuration` / `--configuration`: Debug (default) or Release
+- `-RestartVS` / `--restart-vs`: Automatically restart Visual Studio
+- `-NoBuild` / `--no-build`: Skip building before deployment
 
 ### Running and Debugging
 The project is configured to launch Visual Studio with the experimental instance when debugging:
@@ -59,6 +105,15 @@ The project is configured to launch Visual Studio with the experimental instance
 - Start Arguments: `/rootsuffix Exp`
 
 To test the extension, press F5 in Visual Studio which will launch a new VS instance with the extension loaded.
+
+### Fast Deployment (Without Reinstall)
+
+The deploy script updates your extension in-place without uninstalling, which is much faster than the install/uninstall cycle. It:
+- Finds all VS instances with the extension installed
+- Extracts the new VSIX contents
+- Copies updated DLLs directly to the installation folder
+- Clears the MEF cache to ensure changes are picked up
+- Optionally restarts VS for you
 
 ## Architecture
 
@@ -71,9 +126,12 @@ To test the extension, press F5 in Visual Studio which will launch a new VS inst
 - **SerilogSyntax.Tests/** - xUnit test project (.NET Framework 4.7.2)
 - **SerilogSyntax.Benchmarks/** - BenchmarkDotNet performance tests (.NET Framework 4.7.2)
 - **Example/** - Standalone console app demonstrating all syntax features (.NET 8.0)
-- **build.ps1** - Build script for the solution
-- **test.ps1** - Test runner script
-- **benchmark.ps1** - Benchmark runner script
+- **scripts/** - Build and development scripts
+  - **build.ps1 / build.sh** - Build script for the solution
+  - **test.ps1 / test.sh** - Test runner script
+  - **benchmark.ps1 / benchmark.sh** - Benchmark runner script
+  - **deploy.ps1 / deploy.sh** - Fast deployment script
+  - **quick-deploy.ps1 / quick-deploy.sh** - Build and deploy in one step
 
 ### Key Components
 
@@ -92,12 +150,13 @@ To test the extension, press F5 in Visual Studio which will launch a new VS inst
 
 ## Implementation Overview
 
-This extension provides syntax highlighting and navigation for Serilog message templates in C#/.NET projects. The implementation focuses solely on visual enhancements - no diagnostics, validation, or code fixes.
+This extension provides syntax highlighting and navigation for Serilog message templates and Serilog.Expressions in C#/.NET projects. The implementation focuses solely on visual enhancements - no diagnostics, validation, or code fixes.
 
 ### Features
 - **Syntax highlighting** of properties within Serilog message template strings
+- **Syntax highlighting** for Serilog.Expressions filter syntax and expression templates
 - **Navigation** support (Go to Definition) between template properties and arguments
-- **Brace matching** for template property delimiters
+- **Brace matching** for template property delimiters and expression templates
 
 ### Technical Stack
 - **Roslyn Classification API** - For syntax highlighting via `IClassifier`
@@ -128,6 +187,8 @@ Colors meet WCAG AA accessibility standards and are customizable via Tools > Opt
 
 ### Key Implementation Files
 The extension includes these components:
+
+#### Core Components
 1. **Parsing/TemplateParser.cs** - State machine to extract properties from message templates
 2. **Classification/SerilogClassifier.cs** - Implements `IClassifier` for syntax highlighting
 3. **Classification/SerilogClassifierProvider.cs** - MEF export for classifier
@@ -135,6 +196,12 @@ The extension includes these components:
 5. **Tagging/SerilogBraceMatcher.cs** - Implements `ITagger<TextMarkerTag>` for brace matching
 6. **Utilities/SerilogCallDetector.cs** - Centralized Serilog call detection logic
 7. **Utilities/LruCache.cs** - Thread-safe LRU cache for parsed templates
+
+#### Serilog.Expressions Support
+8. **Expressions/ExpressionTokenizer.cs** - Tokenizes Serilog.Expressions syntax
+9. **Expressions/ExpressionParser.cs** - Parses expressions and templates into classified regions
+10. **Expressions/ExpressionDetector.cs** - Detects expression contexts (filter, template, etc.)
+11. **Classification/SyntaxTreeAnalyzer.cs** - Roslyn-based analysis for expression contexts
 
 ### Performance Considerations
 - LRU cache for parsed templates (10x improvement for repeated templates)

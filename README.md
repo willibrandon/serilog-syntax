@@ -1,12 +1,14 @@
 # Serilog Syntax Highlighting for Visual Studio
 
-A Visual Studio 2022 extension that provides syntax highlighting, brace matching, and navigation features for Serilog message templates in C#/.NET projects.
+A Visual Studio 2022 extension that provides syntax highlighting, brace matching, and navigation features for Serilog message templates and Serilog.Expressions in C#/.NET projects.
 
 ![Serilog Syntax Highlighting Preview](SerilogSyntax/Resources/preview.png)
 
 ## Features
 
 ### 🎨 Syntax Highlighting
+
+#### Message Templates
 - **Property names** highlighted in blue: `{UserId}`, `{UserName}`
 - **Destructuring operator** `@` highlighted in dark goldenrod: `{@User}`
 - **Stringification operator** `$` highlighted in dark goldenrod: `{$Settings}`
@@ -16,6 +18,15 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 - **Property braces** highlighted in purple for structure
 - **Multi-line verbatim strings** fully supported with proper highlighting across lines
 - **C# 11 raw string literals** supported with `"""` delimiters for complex templates
+
+#### Serilog.Expressions
+- **Filter expressions** in `Filter.ByExcluding()` and `Filter.ByIncludingOnly()`
+- **Expression templates** with control flow directives
+- **Operators** highlighted distinctly: `and`, `or`, `not`, `like`, `in`, `is null`
+- **Functions** highlighted: `StartsWith()`, `Contains()`, `Length()`, etc.
+- **Literals** properly colored: strings, numbers, booleans, null
+- **Directives** highlighted: `{#if}`, `{#each}`, `{#else}`, `{#end}`
+- **Built-in properties**: `@t`, `@m`, `@l`, `@x`, `@i`, `@p`
 
 ### 🔗 Smart Detection
 - Works with any logger variable name (not just `_logger` or `log`)
@@ -144,6 +155,19 @@ logger.LogInformation("""
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}")
     .CreateLogger();
+
+// Serilog.Expressions filter syntax
+Log.Logger = new LoggerConfiguration()
+    .Filter.ByExcluding("RequestPath like '/health%'")
+    .Filter.ByIncludingOnly("Level = 'Error' or StatusCode >= 500")
+    .CreateLogger();
+
+// Expression templates with control flow
+var expressionTemplate = new ExpressionTemplate(
+    "{#if Level = 'Error'}❌{#else}✅{#end} {@m}");
+
+// Computed properties with expressions
+.Enrich.WithComputed("ResponseTime", "EndsWith(RequestPath, '.json') ? Elapsed * 2 : Elapsed")
 ```
 
 ## Example Project

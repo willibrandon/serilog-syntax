@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.VisualStudio.Text;
 using SerilogSyntax.Diagnostics;
+using SerilogSyntax.Expressions;
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -21,12 +22,12 @@ internal static class SyntaxTreeAnalyzer
     /// Cache for parsed syntax trees per snapshot to avoid reparsing
     /// </summary>
     private static readonly ConcurrentDictionary<ITextSnapshot, (SyntaxTree tree, SyntaxNode root)> _syntaxTreeCache = new();
-    
+
     /// <summary>
     /// Cache for invocation analysis results to avoid reanalyzing the same method calls
     /// </summary>
     private static readonly ConcurrentDictionary<int, bool> _invocationCache = new();
-    
+
     /// <summary>
     /// Conditional diagnostic logging that only executes in DEBUG builds
     /// </summary>
@@ -35,27 +36,28 @@ internal static class SyntaxTreeAnalyzer
     {
         DiagnosticLogger.Log(message);
     }
-    
+
     /// <summary>
     /// Clears caches when they get too large to prevent memory leaks
     /// </summary>
     public static void ClearCachesIfNeeded()
     {
-        const int maxCacheSize = 50; // Reasonable limit for VS usage
-        
+        // Reasonable limit for VS usage
+        const int maxCacheSize = 50;
+
         if (_syntaxTreeCache.Count > maxCacheSize)
         {
             _syntaxTreeCache.Clear();
             LogDiagnostic($"[SyntaxTreeAnalyzer] Cleared syntax tree cache (size exceeded {maxCacheSize})");
         }
-        
+
         if (_invocationCache.Count > maxCacheSize * 10) // Invocations are smaller, allow more
         {
             _invocationCache.Clear();
             LogDiagnostic($"[SyntaxTreeAnalyzer] Cleared invocation cache (size exceeded {maxCacheSize * 10})");
         }
     }
-    
+
     /// <summary>
     /// Gets or creates a cached syntax tree for the given snapshot
     /// </summary>
@@ -63,7 +65,7 @@ internal static class SyntaxTreeAnalyzer
     {
         // Periodically clear caches to prevent memory leaks
         ClearCachesIfNeeded();
-        
+
         return _syntaxTreeCache.GetOrAdd(snapshot, s =>
         {
             var text = s.GetText();
@@ -73,26 +75,32 @@ internal static class SyntaxTreeAnalyzer
             return (tree, root);
         });
     }
-    
+
     /// <summary>
     /// Fast path check to avoid expensive syntax tree parsing when unnecessary
     /// </summary>
     private static bool RequiresSyntaxTreeAnalysis(string lineText)
     {
         // Quick rejection for lines that definitely aren't Serilog related
-        if (!lineText.Contains("Log") && !lineText.Contains("log") && 
-            !lineText.Contains("{") && !lineText.Contains("}"))
+        if (!lineText.Contains("Log") && !lineText.Contains("log") &&
+            !lineText.Contains("{") && !lineText.Contains("}") &&
+            !lineText.Contains("Filter") && !lineText.Contains("Enrich") &&
+            !lineText.Contains("WriteTo") && !lineText.Contains("ExpressionTemplate"))
         {
             return false;
         }
-        
+
         // Lines that likely need detailed analysis
         return lineText.Contains("\"\"\"") ||  // Raw strings
                lineText.Contains("@\"") ||     // Verbatim strings
                (lineText.Contains("Log") && lineText.Contains("(")) || // Method calls
-               (lineText.Contains("{") && lineText.Contains("}")); // Template syntax
+               (lineText.Contains("{") && lineText.Contains("}")) || // Template syntax
+               lineText.Contains("Filter.") || // Expression filters
+               lineText.Contains("Enrich.") || // Expression enrichers
+               lineText.Contains("WriteTo.") || // Conditional writes
+               lineText.Contains("ExpressionTemplate"); // Expression templates
     }
-    
+
     /// <summary>
     /// Determines if the given position is inside a string literal that is an argument
     /// to a Serilog method call.
@@ -107,27 +115,27 @@ internal static class SyntaxTreeAnalyzer
             // Fast path: Check current line first to avoid expensive parsing when possible
             var currentLine = snapshot.GetLineFromPosition(position);
             var currentLineText = currentLine.GetText();
-            
+
             if (!RequiresSyntaxTreeAnalysis(currentLineText))
             {
                 LogDiagnostic($"[SyntaxTreeAnalyzer] Fast path rejection for line: '{currentLineText.Trim()}'");
                 return false;
             }
-            
+
             // Use cached syntax tree to avoid reparsing
             var (syntaxTree, root) = GetCachedSyntaxTree(snapshot);
 
             // Find the token at the given position
             var token = root.FindToken(position);
             var node = token.Parent;
-            
+
             LogDiagnostic($"[SyntaxTreeAnalyzer] Position {position}, token: {token.Kind()}, node: {node?.GetType().Name}");
-            
+
             // Check if the token itself is a string literal
             if (token.IsKind(SyntaxKind.StringLiteralToken))
             {
                 LogDiagnostic($"[SyntaxTreeAnalyzer] Found string literal token, parent: {node?.GetType().Name}");
-                
+
                 if (node is LiteralExpressionSyntax literalExpression)
                 {
                     var result = IsStringLiteralInSerilogCall(literalExpression);
@@ -135,7 +143,7 @@ internal static class SyntaxTreeAnalyzer
                     return result;
                 }
             }
-            
+
             // Check if we're inside a multi-line raw string literal
             if (token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken))
             {
@@ -159,16 +167,16 @@ internal static class SyntaxTreeAnalyzer
                     return result;
                 }
             }
-            
-            
+
+
             // Walk up the syntax tree to find if we're inside a string literal
             int depth = 0;
             while (node != null && depth < 10)  // Prevent infinite loops
             {
                 LogDiagnostic($"[SyntaxTreeAnalyzer] Checking node at depth {depth}: {node.GetType().Name}");
-                
+
                 // Check if this is a string literal (handles verbatim strings like @"...")
-                if (node is LiteralExpressionSyntax literalExpression && 
+                if (node is LiteralExpressionSyntax literalExpression &&
                     literalExpression.Token.IsKind(SyntaxKind.StringLiteralToken))
                 {
                     LogDiagnostic($"[SyntaxTreeAnalyzer] Found literal expression at depth {depth}");
@@ -176,7 +184,7 @@ internal static class SyntaxTreeAnalyzer
                     LogDiagnostic($"[SyntaxTreeAnalyzer] Literal expression in Serilog call: {result}");
                     return result;
                 }
-                
+
                 // Check if this is a raw string literal (C# 11: """...""")
                 if (node is LiteralExpressionSyntax rawStringLiteral &&
                     (rawStringLiteral.Token.Text.StartsWith("\"\"\"") || rawStringLiteral.Token.Text.StartsWith("@\"\"\"")))
@@ -186,7 +194,7 @@ internal static class SyntaxTreeAnalyzer
                     LogDiagnostic($"[SyntaxTreeAnalyzer] Raw string in Serilog call: {result}");
                     return result;
                 }
-                
+
                 // Check if this is an interpolated string
                 if (node is InterpolatedStringExpressionSyntax)
                 {
@@ -194,18 +202,18 @@ internal static class SyntaxTreeAnalyzer
                     // Interpolated strings are not Serilog templates
                     return false;
                 }
-                
+
                 node = node.Parent;
                 depth++;
             }
-            
+
             // If the current line itself contains a Serilog call, allow classification
             if (Utilities.SerilogCallDetector.IsSerilogCall(currentLineText))
             {
                 LogDiagnostic($"[SyntaxTreeAnalyzer] Current line contains Serilog call pattern");
                 return true;
             }
-            
+
             // Before returning false, check if this is a multi-line string continuation
             // that's part of a Serilog call started on a previous line
 
@@ -217,9 +225,9 @@ internal static class SyntaxTreeAnalyzer
                 {
                     var checkLine = snapshot.GetLineFromLineNumber(i);
                     var checkText = checkLine.GetText();
-                    
+
                     // Check if this line starts a Serilog call with an unclosed string
-                    if (Utilities.SerilogCallDetector.IsSerilogCall(checkText) && 
+                    if (Utilities.SerilogCallDetector.IsSerilogCall(checkText) &&
                         (checkText.Contains("\"\"\"") || checkText.Contains("@\"")))
                     {
                         // This could be a continuation of a multi-line Serilog string
@@ -237,14 +245,14 @@ internal static class SyntaxTreeAnalyzer
             // If parsing fails, check if this looks like a Serilog call
             // using the original text-based detection
             LogDiagnostic($"[SyntaxTreeAnalyzer] Exception parsing syntax tree: {ex.Message}");
-            
+
             try
             {
                 var line = snapshot.GetLineFromPosition(position);
                 var lineText = line.GetText();
-                
+
                 LogDiagnostic($"[SyntaxTreeAnalyzer] Fallback check on line: '{lineText.Trim()}'");
-                
+
                 // If the line appears to be inside a Serilog call, assume it is
                 // This prevents false negatives when Roslyn can't parse
                 if (Utilities.SerilogCallDetector.IsSerilogCall(lineText))
@@ -252,7 +260,7 @@ internal static class SyntaxTreeAnalyzer
                     LogDiagnostic($"[SyntaxTreeAnalyzer] Fallback: Line matches Serilog pattern, returning true");
                     return true;
                 }
-                
+
                 // Also check nearby lines for Serilog context
                 for (int i = Math.Max(0, line.LineNumber - 3); i <= Math.Min(snapshot.LineCount - 1, line.LineNumber + 1); i++)
                 {
@@ -264,7 +272,7 @@ internal static class SyntaxTreeAnalyzer
                         return true;
                     }
                 }
-                
+
                 LogDiagnostic($"[SyntaxTreeAnalyzer] Fallback: No Serilog pattern found, returning false");
                 return false;
             }
@@ -286,24 +294,24 @@ internal static class SyntaxTreeAnalyzer
         // Walk up to find the actual invocation this string belongs to
         var node = stringLiteral.Parent;
         int depth = 0;
-        
+
         LogDiagnostic($"[IsStringLiteralInSerilogCall] Starting from string literal: '{stringLiteral.Token.Text.Substring(0, Math.Min(50, stringLiteral.Token.Text.Length))}'");
-        
+
         while (node != null && depth < 10)  // Prevent infinite loops
         {
             LogDiagnostic($"[IsStringLiteralInSerilogCall] Depth {depth}: {node.GetType().Name}");
-            
+
             if (node is InvocationExpressionSyntax invocation)
             {
                 LogDiagnostic($"[IsStringLiteralInSerilogCall] Found invocation at depth {depth}");
-                
+
                 // This is the KEY: Check if THIS invocation is a Serilog call
                 // Don't just check ANY invocation in the tree
-                
+
                 // Is the string literal a direct argument to THIS invocation?
                 var arguments = invocation.ArgumentList?.Arguments;
                 bool isDirectArgument = false;
-                
+
                 if (arguments != null)
                 {
                     foreach (var arg in arguments)
@@ -317,7 +325,7 @@ internal static class SyntaxTreeAnalyzer
                         }
                     }
                 }
-                
+
                 if (isDirectArgument)
                 {
                     // Only return true if THIS invocation is a Serilog method
@@ -330,11 +338,70 @@ internal static class SyntaxTreeAnalyzer
                     LogDiagnostic($"[IsStringLiteralInSerilogCall] String is not direct argument, continuing search");
                 }
             }
-            
+
+            // Check for string concatenation (could be part of ExpressionTemplate or Serilog call)
+            if (node is BinaryExpressionSyntax binaryExpression &&
+                binaryExpression.IsKind(SyntaxKind.AddExpression))
+            {
+                LogDiagnostic($"[IsStringLiteralInSerilogCall] Found string concatenation at depth {depth}");
+
+                // Check if this concatenation contains our string literal
+                if (ContainsNode(binaryExpression, stringLiteral))
+                {
+                    // Continue walking up to see if this concatenation is used in a Serilog call
+                    // Don't return here, just continue the loop
+                    LogDiagnostic($"[IsStringLiteralInSerilogCall] String is part of concatenation, continuing search");
+                }
+            }
+
+            // Check for new ExpressionTemplate()
+            if (node is ObjectCreationExpressionSyntax objectCreation)
+            {
+                var typeName = objectCreation.Type.ToString();
+                LogDiagnostic($"[IsStringLiteralInSerilogCall] Found object creation at depth {depth}: '{typeName}'");
+
+                // Check if this is ExpressionTemplate
+                if (typeName == "ExpressionTemplate" ||
+                    typeName.EndsWith(".ExpressionTemplate") ||
+                    typeName.Contains("ExpressionTemplate"))
+                {
+                    LogDiagnostic($"[IsStringLiteralInSerilogCall] Detected ExpressionTemplate type");
+
+                    // Is the string literal a direct argument OR part of a concatenation argument?
+                    var arguments = objectCreation.ArgumentList?.Arguments;
+                    if (arguments != null && arguments.Value.Count > 0)
+                    {
+                        LogDiagnostic($"[IsStringLiteralInSerilogCall] ExpressionTemplate has {arguments.Value.Count} arguments");
+
+                        for (int i = 0; i < arguments.Value.Count; i++)
+                        {
+                            var arg = arguments.Value[i];
+                            LogDiagnostic($"[IsStringLiteralInSerilogCall] Checking argument {i}: {arg.Expression.GetType().Name}");
+
+                            if (ContainsNode(arg.Expression, stringLiteral))
+                            {
+                                LogDiagnostic($"[IsStringLiteralInSerilogCall] String is argument {i} to ExpressionTemplate constructor");
+                                return true;
+                            }
+                        }
+
+                        LogDiagnostic($"[IsStringLiteralInSerilogCall] String literal not found in any ExpressionTemplate arguments");
+                    }
+                    else
+                    {
+                        LogDiagnostic($"[IsStringLiteralInSerilogCall] ExpressionTemplate has no arguments");
+                    }
+                }
+                else
+                {
+                    LogDiagnostic($"[IsStringLiteralInSerilogCall] Not an ExpressionTemplate: '{typeName}'");
+                }
+            }
+
             node = node.Parent;
             depth++;
         }
-        
+
         LogDiagnostic($"[IsStringLiteralInSerilogCall] No invocation found, checking context");
 
         // If we can't find an invocation, this string is likely just assigned to a variable
@@ -343,7 +410,7 @@ internal static class SyntaxTreeAnalyzer
 
         // Check if the string is part of a variable assignment
         var parent = stringLiteral.Parent;
-        if (parent is EqualsValueClauseSyntax || 
+        if (parent is EqualsValueClauseSyntax ||
             parent?.Parent is EqualsValueClauseSyntax ||
             parent?.Parent?.Parent is LocalDeclarationStatementSyntax)
         {
@@ -365,13 +432,13 @@ internal static class SyntaxTreeAnalyzer
     {
         // Use the span start as a simple cache key for this invocation
         var cacheKey = invocation.Span.Start;
-        
+
         return _invocationCache.GetOrAdd(cacheKey, _ =>
         {
             return AnalyzeInvocation(invocation);
         });
     }
-    
+
     /// <summary>
     /// Analyzes an invocation to determine if it's a Serilog method call (uncached)
     /// </summary>
@@ -385,25 +452,58 @@ internal static class SyntaxTreeAnalyzer
 
         var methodName = memberAccess.Name.Identifier.ValueText;
         LogDiagnostic($"[IsSerilogMethodInvocation] Method name: {methodName}");
-        
+
         // Check for Serilog method names
         var serilogMethods = new[]
         {
             "LogTrace", "LogDebug", "LogInformation", "LogWarning", "LogError", "LogCritical", "LogFatal",
             "Verbose", "Debug", "Information", "Warning", "Error", "Fatal",
-            "BeginScope"
+            "BeginScope",
+            // Serilog.Expressions methods
+            "ByExcluding", "ByIncludingOnly", "WithComputed", "When", "Conditional"
         };
-        
+
+        // For expression methods, check if they're called on Filter/Enrich/WriteTo
+        if (methodName == "ByExcluding" || methodName == "ByIncludingOnly")
+        {
+            if (memberAccess.Expression is IdentifierNameSyntax filterIdentifier &&
+                filterIdentifier.Identifier.ValueText == "Filter")
+            {
+                LogDiagnostic($"[IsSerilogMethodInvocation] Matched Filter.{methodName}");
+                return true;
+            }
+        }
+
+        if (methodName == "WithComputed" || methodName == "When")
+        {
+            if (memberAccess.Expression is IdentifierNameSyntax enrichIdentifier &&
+                enrichIdentifier.Identifier.ValueText == "Enrich")
+            {
+                LogDiagnostic($"[IsSerilogMethodInvocation] Matched Enrich.{methodName}");
+                return true;
+            }
+        }
+
+        if (methodName == "Conditional")
+        {
+            if (memberAccess.Expression is IdentifierNameSyntax writeToIdentifier &&
+                writeToIdentifier.Identifier.ValueText == "WriteTo")
+            {
+                LogDiagnostic($"[IsSerilogMethodInvocation] Matched WriteTo.{methodName}");
+                return true;
+            }
+        }
+
         if (!serilogMethods.Contains(methodName))
         {
             LogDiagnostic($"[IsSerilogMethodInvocation] Method name '{methodName}' not in Serilog methods");
             return false;
         }
-            
+
         // Check if the target is a logger-like object
         var target = memberAccess.Expression;
         LogDiagnostic($"[IsSerilogMethodInvocation] Target type: {target.GetType().Name}");
-        
+
         // Direct static calls: Log.Information, Log.Debug, etc.
         if (target is IdentifierNameSyntax identifier)
         {
@@ -415,7 +515,7 @@ internal static class SyntaxTreeAnalyzer
                 return true;
             }
         }
-        
+
         // Instance calls: logger.LogInformation, _logger.LogDebug, etc.
         if (target is IdentifierNameSyntax instanceIdentifier)
         {
@@ -427,7 +527,7 @@ internal static class SyntaxTreeAnalyzer
                 return true;
             }
         }
-        
+
         // Member access: this.logger.LogInformation, etc.
         if (target is MemberAccessExpressionSyntax nestedMemberAccess)
         {
@@ -439,7 +539,7 @@ internal static class SyntaxTreeAnalyzer
                 return true;
             }
         }
-        
+
         // Contextual loggers: Log.ForContext<T>().Information, etc.
         if (target is InvocationExpressionSyntax nestedInvocation)
         {
@@ -455,9 +555,237 @@ internal static class SyntaxTreeAnalyzer
                 }
             }
         }
-        
+
         LogDiagnostic($"[IsSerilogMethodInvocation] No match found");
         return false;
+    }
+
+    /// <summary>
+    /// Determines what type of expression context a string literal is in, if any.
+    /// Returns the appropriate ExpressionContext or None if not in an expression.
+    /// </summary>
+    /// <param name="snapshot">The text snapshot containing the code</param>
+    /// <param name="position">The position to check</param>
+    /// <returns>
+    /// The expression context for the position
+    /// </returns>
+    public static ExpressionContext GetExpressionContext(ITextSnapshot snapshot, int position)
+    {
+        try
+        {
+            // Use cached syntax tree to avoid reparsing
+            var (syntaxTree, root) = GetCachedSyntaxTree(snapshot);
+
+            // Find the token at the given position
+            var token = root.FindToken(position);
+            var node = token.Parent;
+
+            LogDiagnostic($"[GetExpressionContext] Position {position}, token: {token.Kind()}, node: {node?.GetType().Name}");
+
+            // Find the string literal
+            LiteralExpressionSyntax stringLiteral = null;
+
+            if (token.IsKind(SyntaxKind.StringLiteralToken)
+                || token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken)
+                || token.IsKind(SyntaxKind.SingleLineRawStringLiteralToken))
+            {
+                if (node is LiteralExpressionSyntax literal)
+                {
+                    stringLiteral = literal;
+                }
+            }
+
+            if (stringLiteral == null)
+            {
+                // Walk up to find a string literal
+                var current = node;
+                while (current != null && current is not LiteralExpressionSyntax)
+                {
+                    current = current.Parent;
+                }
+
+                stringLiteral = current as LiteralExpressionSyntax;
+            }
+
+            if (stringLiteral == null)
+            {
+                LogDiagnostic($"[GetExpressionContext] No string literal found");
+                return ExpressionContext.None;
+            }
+
+            // Walk up to find the invocation or object creation this string belongs to
+            var parent = stringLiteral.Parent;
+            int depth = 0;
+
+            while (parent != null && depth < 10)
+            {
+                LogDiagnostic($"[GetExpressionContext] Checking parent at depth {depth}: {parent.GetType().Name}");
+
+                // Check for ExpressionTemplate constructor
+                if (parent is ObjectCreationExpressionSyntax objectCreation)
+                {
+                    var typeName = objectCreation.Type.ToString();
+                    if (typeName.Contains("ExpressionTemplate"))
+                    {
+                        // Check if our string is an argument to this constructor
+                        var arguments = objectCreation.ArgumentList?.Arguments;
+                        if (arguments != null)
+                        {
+                            foreach (var arg in arguments.Value)
+                            {
+                                if (ContainsNode(arg.Expression, stringLiteral))
+                                {
+                                    LogDiagnostic($"[GetExpressionContext] String is argument to ExpressionTemplate");
+                                    return ExpressionContext.ExpressionTemplate;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Check for method invocations
+                if (parent is InvocationExpressionSyntax invocation)
+                {
+                    // Check if this string is a direct argument to this invocation
+                    var arguments = invocation.ArgumentList?.Arguments;
+                    bool isDirectArgument = false;
+                    int argumentIndex = -1;
+
+                    if (arguments != null)
+                    {
+                        for (int i = 0; i < arguments.Value.Count; i++)
+                        {
+                            if (ContainsNode(arguments.Value[i].Expression, stringLiteral))
+                            {
+                                isDirectArgument = true;
+                                argumentIndex = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isDirectArgument && invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+                    {
+                        var methodName = memberAccess.Name.Identifier.ValueText;
+                        LogDiagnostic($"[GetExpressionContext] String is argument {argumentIndex} to method {methodName}");
+
+                        // Check for Filter expressions
+                        if (methodName == "ByExcluding" || methodName == "ByIncludingOnly")
+                        {
+                            // Check if this is called on Filter (either Filter.ByExcluding or .Filter.ByExcluding)
+                            var expression = memberAccess.Expression;
+                            string targetName = null;
+
+                            if (expression is IdentifierNameSyntax identifier)
+                            {
+                                targetName = identifier.Identifier.ValueText;
+                            }
+                            else if (expression is MemberAccessExpressionSyntax nestedAccess &&
+                                     nestedAccess.Name is IdentifierNameSyntax nestedIdentifier)
+                            {
+                                targetName = nestedIdentifier.Identifier.ValueText;
+                            }
+
+                            if (targetName == "Filter")
+                            {
+                                LogDiagnostic($"[GetExpressionContext] Detected Filter.{methodName}");
+                                return ExpressionContext.FilterExpression;
+                            }
+                        }
+
+                        // Check for Enrich.When
+                        if (methodName == "When")
+                        {
+                            var expression = memberAccess.Expression;
+                            string targetName = null;
+
+                            if (expression is IdentifierNameSyntax identifier)
+                            {
+                                targetName = identifier.Identifier.ValueText;
+                            }
+                            else if (expression is MemberAccessExpressionSyntax nestedAccess &&
+                                     nestedAccess.Name is IdentifierNameSyntax nestedIdentifier)
+                            {
+                                targetName = nestedIdentifier.Identifier.ValueText;
+                            }
+
+                            if (targetName == "Enrich")
+                            {
+                                LogDiagnostic($"[GetExpressionContext] Detected Enrich.When");
+                                return ExpressionContext.FilterExpression; // When uses filter expressions
+                            }
+                        }
+
+                        // Check for Enrich.WithComputed  
+                        if (methodName == "WithComputed")
+                        {
+                            var expression = memberAccess.Expression;
+                            string targetName = null;
+
+                            if (expression is IdentifierNameSyntax identifier)
+                            {
+                                targetName = identifier.Identifier.ValueText;
+                            }
+                            else if (expression is MemberAccessExpressionSyntax nestedAccess &&
+                                     nestedAccess.Name is IdentifierNameSyntax nestedIdentifier)
+                            {
+                                targetName = nestedIdentifier.Identifier.ValueText;
+                            }
+
+                            if (targetName == "Enrich")
+                            {
+                                // WithComputed has two string arguments: property name and expression
+                                // The second argument (index 1) is the expression
+                                if (argumentIndex == 1)
+                                {
+                                    LogDiagnostic($"[GetExpressionContext] Detected Enrich.WithComputed expression argument");
+                                    return ExpressionContext.ComputedProperty;
+                                }
+                                // First argument is just the property name, not an expression
+                            }
+                        }
+
+                        // Check for WriteTo.Conditional
+                        if (methodName == "Conditional")
+                        {
+                            var expression = memberAccess.Expression;
+                            string targetName = null;
+
+                            if (expression is IdentifierNameSyntax identifier)
+                            {
+                                targetName = identifier.Identifier.ValueText;
+                            }
+                            else if (expression is MemberAccessExpressionSyntax nestedAccess &&
+                                     nestedAccess.Name is IdentifierNameSyntax nestedIdentifier)
+                            {
+                                targetName = nestedIdentifier.Identifier.ValueText;
+                            }
+
+                            if (targetName == "WriteTo")
+                            {
+                                // First argument is the conditional expression
+                                if (argumentIndex == 0)
+                                {
+                                    LogDiagnostic($"[GetExpressionContext] Detected WriteTo.Conditional");
+                                    return ExpressionContext.ConditionalExpression;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                parent = parent.Parent;
+                depth++;
+            }
+
+            LogDiagnostic($"[GetExpressionContext] No expression context found");
+            return ExpressionContext.None;
+        }
+        catch (Exception ex)
+        {
+            LogDiagnostic($"[GetExpressionContext] Exception: {ex.Message}");
+            return ExpressionContext.None;
+        }
     }
 
     /// <summary>
@@ -466,13 +794,13 @@ internal static class SyntaxTreeAnalyzer
     private static bool ContainsNode(SyntaxNode parent, SyntaxNode target)
     {
         if (parent == target) return true;
-        
+
         foreach (var child in parent.ChildNodes())
         {
             if (ContainsNode(child, target))
                 return true;
         }
-        
+
         return false;
     }
 }

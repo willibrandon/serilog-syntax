@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Templates;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -31,7 +32,7 @@ class Program
                     .ReadFrom.Services(services)
                     .Enrich.FromLogContext()
                     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-                    .WriteTo.File("logs/example-.log", 
+                    .WriteTo.File("logs/example-.log",
                         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
                         rollingInterval: RollingInterval.Day))
                 .ConfigureServices((context, services) =>
@@ -67,6 +68,7 @@ public class ExampleService(ILogger<ExampleService> logger)
         await FormattingExamples();
         await VerbatimStringExamples();
         await RawStringLiteralExamples();
+        await SerilogExpressionsExamples();
         await ErrorHandlingExamples();
         await PerformanceLoggingExamples();
     }
@@ -81,33 +83,33 @@ public class ExampleService(ILogger<ExampleService> logger)
         var orderCount = 5;
         var totalAmount = 1234.56m;
         var timestamp = DateTime.Now;
-        
+
         // Standard properties with multiple types
-        logger.LogInformation("User {UserId} ({UserName}) placed {OrderCount} orders totaling {TotalAmount:C}", 
+        logger.LogInformation("User {UserId} ({UserName}) placed {OrderCount} orders totaling {TotalAmount:C}",
             userId, userName, orderCount, totalAmount);
-        
+
         // Destructuring with @ and formatting with alignment
         var order = new { Id = "ORD-001", Items = 3, Total = 499.99m };
-        logger.LogInformation("Processing order {@Order} at {Timestamp:HH:mm:ss} | Status: {Status,10}", 
+        logger.LogInformation("Processing order {@Order} at {Timestamp:HH:mm:ss} | Status: {Status,10}",
             order, timestamp, "Pending");
-        
+
         // Stringification with $ and positional parameters
         var config = new Dictionary<string, object> { ["timeout"] = 30, ["retries"] = 3 };
-        logger.LogWarning("Configuration {$Config} using legacy format: {0}, {1}, {2}", 
+        logger.LogWarning("Configuration {$Config} using legacy format: {0}, {1}, {2}",
             config, "Warning", "Code-123", 42);
-        
+
         // Complex formatting with alignment and precision
-        logger.LogInformation("Sales Report: Product {Product,-15} | Units: {Units,5} | Revenue: {Revenue,10:F2}", 
+        logger.LogInformation("Sales Report: Product {Product,-15} | Units: {Units,5} | Revenue: {Revenue,10:F2}",
             "Premium Widget", 147, 4521.3456);
-        
+
         // Verbatim string with properties (demonstrates @"..." string support)
         var filePath = @"C:\Users\alice\Documents";
         logger.LogInformation(@"Processing files in path: {FilePath}
 Multiple lines are supported in verbatim strings
 With properties like {UserId} and {@Order}
-Even with ""escaped quotes"" in the template", 
+Even with ""escaped quotes"" in the template",
             filePath, userId, order);
-        
+
         // Raw string literal with properties (C# 11 """...""" support)
         var recordId = "REC-2024";
         var status = "Processing";
@@ -212,7 +214,7 @@ Even with ""escaped quotes"" in the template",
         logger.LogInformation("Inventory Report:");
         foreach (var item in items)
         {
-            logger.LogInformation("Item: {Name,10} | Price: {Price,8:C} | Stock: {Stock,3}", 
+            logger.LogInformation("Item: {Name,10} | Price: {Price,8:C} | Stock: {Stock,3}",
                 item.Name, item.Price, item.Stock);
         }
 
@@ -274,10 +276,10 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
     private async Task RawStringLiteralExamples()
     {
         logger.LogInformation("=== Raw String Literal Tests (C# 11+) ===");
-        
+
         // 1. Single-line raw string literal
         logger.LogInformation("""User {UserId} logged in at {Timestamp:HH:mm:ss}""", 42, DateTime.Now);
-        
+
         // 2. Multi-line raw string literal
         var recordId = "REC-001";
         var status = "Active";
@@ -287,18 +289,18 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
             Status: {Status}
             Timestamp: {Timestamp:yyyy-MM-dd}
             """, recordId, status, DateTime.Now);
-        
+
         // 3. Raw string with embedded quotes (no escaping needed)
         var configValue = "production";
         logger.LogInformation("""Configuration value "AppMode" is set to "{Value}" """, configValue);
-        
+
         // 4. Raw string with custom delimiter (4+ quotes)
         var data = "test-data";
         logger.LogInformation(""""
             Template with """ inside: {Data}
             This allows literal triple quotes in the string
             """", data);
-        
+
         // 5. Complex multi-line raw string with various property types
         var appName = "ExampleApp";
         var version = "2.0.0";
@@ -306,7 +308,7 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         var userName = "Admin";
         var userId = 1;
         var sessionId = Guid.NewGuid();
-        
+
         logger.LogInformation("""
             ===============================================
             Application: {AppName}
@@ -318,7 +320,7 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
             Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
             ===============================================
             """, appName, version, environment, userName, userId, sessionId, DateTime.Now);
-        
+
         // 6. Raw string with positional parameters and formatting
         logger.LogInformation("""
             Database Query Results:
@@ -326,17 +328,73 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
             Rows affected: {1,5}
             Execution time: {2:F2}ms
             """, userId, 42, 123.456);
-        
+
         // 7. Raw string with destructuring and stringification
         var config = new { Mode = "Debug", Timeout = 30 };
         var settings = new Dictionary<string, object> { ["key1"] = "value1", ["key2"] = 42 };
-        
+
         logger.LogInformation("""
             Configuration loaded:
             Config: {@Config}
             Settings: {$Settings}
             """, config, settings);
-        
+
+        await Task.Delay(100);
+    }
+
+    private async Task SerilogExpressionsExamples()
+    {
+        logger.LogInformation("=== Serilog.Expressions Syntax Examples ===");
+
+        // These demonstrate actual Serilog.Expressions API calls with expression syntax
+        var expressionConfig = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+
+            // Filter expressions
+            .Filter.ByExcluding("RequestPath like '/health%' and StatusCode < 400")
+            .Filter.ByExcluding("SourceContext = 'Microsoft.AspNetCore.Hosting.Diagnostics' and Level < 'Warning'")
+            .Filter.ByIncludingOnly("Level >= 'Information' or SourceContext = 'Example.ExampleService'")
+            .Filter.ByExcluding("Message not like '%debug%' ci")
+            .Filter.ByIncludingOnly("User.Role in ['Admin', 'Moderator'] or Level = 'Error'")
+            .Filter.ByExcluding("Exception is not null and Contains(Exception.Type, 'OperationCanceled')")
+
+            // Conditional enrichment
+            .Enrich.When("Level >= 'Warning'", e => e.WithProperty("Alert", true))
+            .Enrich.When("Contains(RequestPath, '/api')", e => e.WithProperty("IsApi", true))
+            .Enrich.When("User.IsAuthenticated and User.Role = 'Admin'", e => e.WithProperty("Privileged", true))
+
+            // Computed properties
+            .Enrich.WithComputed("ShortContext", "Substring(SourceContext, LastIndexOf(SourceContext, '.') + 1)")
+            .Enrich.WithComputed("IsError", "Level = 'Error' or Level = 'Fatal'")
+            .Enrich.WithComputed("RequestType", "if StartsWith(RequestPath, '/api') then 'API' else 'Web'")
+            .Enrich.WithComputed("Duration", "Round(Elapsed.TotalMilliseconds, 2)")
+            .Enrich.WithComputed("UserDisplayName", "Coalesce(User.FullName, User.Email, 'Anonymous')")
+
+            // Conditional writes
+            .WriteTo.Conditional("Environment = 'Production' and Level >= 'Warning'",
+                wt => wt.File("logs/prod-warnings.log"))
+            .WriteTo.Conditional("Contains(SourceContext, 'Security') or Contains(Message, 'Authentication')",
+                wt => wt.File("logs/security.log"))
+            .WriteTo.Conditional("RequestPath like '/api%' and StatusCode >= 400",
+                wt => wt.File("logs/api-errors.log"));
+
+        logger.LogInformation("Serilog.Expressions configuration example created");
+
+        // Expression template examples
+        var templateConfig = new LoggerConfiguration()
+            .WriteTo.Console(new ExpressionTemplate(
+                "[{@t:HH:mm:ss} {@l:u3}] {#if SourceContext is not null}[{Substring(SourceContext, LastIndexOf(SourceContext, '.') + 1)}]{#end} {@m}\n{@x}"))
+            .WriteTo.File(new ExpressionTemplate(
+                "{#if IsError}[ERROR]{#else if Level = 'Warning'}[WARN]{#else}[INFO]{#end} " +
+                "[{@t:yyyy-MM-dd HH:mm:ss.fff}] " +
+                "{#if @p['RequestId'] is not null}[{@p['RequestId']}] {#end}" +
+                "{@m}" +
+                "{#each name, value in @p} | {name}={value}{#end}" +
+                "{#if @x is not null}\n{@x}{#end}\n"),
+                path: "logs/app.log");
+
+        logger.LogInformation("Expression template configuration created");
+
         await Task.Delay(100);
     }
 
@@ -351,7 +409,7 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         }
         catch (FileNotFoundException ex)
         {
-            logger.LogError(ex, "File not found: {FileName} in directory {Directory}", 
+            logger.LogError(ex, "File not found: {FileName} in directory {Directory}",
                 ex.FileName, Path.GetDirectoryName(ex.FileName));
         }
         catch (Exception ex)
@@ -360,7 +418,7 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         }
 
         // Positional parameters (legacy style)
-        logger.LogWarning("Legacy format: Error {0} occurred in method {1} at line {2}", 
+        logger.LogWarning("Legacy format: Error {0} occurred in method {1} at line {2}",
             "ValidationFailed", "ProcessData", 42);
 
         await Task.Delay(100);
@@ -403,10 +461,10 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
     private async Task SimulateOperationAsync(string fileName)
     {
         logger.LogDebug("Attempting to process file {FileName}", fileName);
-        
+
         // Simulate file operation
         await Task.Delay(50);
-        
+
         // Throw an exception to demonstrate error logging
         throw new FileNotFoundException($"Could not find file '{fileName}'", fileName);
     }

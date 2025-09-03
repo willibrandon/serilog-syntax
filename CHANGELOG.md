@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-09-03
+
+### Added
+- Full support for Serilog.Expressions syntax highlighting
+  - Filter expressions in `Filter.ByExcluding()` and `Filter.ByIncludingOnly()`
+  - Expression templates with `ExpressionTemplate` class
+  - Conditional expressions in `WriteTo.Conditional()`
+  - Computed properties in `Enrich.WithComputed()`
+- Expression language syntax elements
+  - Operators: `and`, `or`, `not`, `like`, `in`, `is null`, `=`, `<>`, `>`, `>=`, `<`, `<=`
+  - Functions: `StartsWith()`, `EndsWith()`, `Contains()`, `Length()`, `Has()`, etc.
+  - String literals with escape sequences
+  - Numeric and boolean literals
+  - Property paths with dot notation: `User.Name`, `Order.Customer.Address.City`
+  - Case-insensitive operators: `ci` suffix for string comparisons
+- Expression template control flow directives
+  - `{#if}`, `{#else}`, `{#elseif}`, `{#end}` for conditional rendering
+  - `{#each}` for iteration
+  - Built-in properties: `@t`, `@m`, `@l`, `@x`, `@i`, `@p`, `@tr`, `@sp`
+  - Nested directive support with proper scope tracking
+- Brace matching for expression templates
+  - Consistent with Visual Studio standard behavior
+  - Works across multi-line expression templates
+  - Handles nested directives correctly
+
 ## [0.4.5] - 2025-09-01
 
 ### Fixed

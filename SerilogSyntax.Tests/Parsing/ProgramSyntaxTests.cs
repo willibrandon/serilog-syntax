@@ -108,4 +108,68 @@ public class ProgramSyntaxTests
         // If these numbers are very different, we've found the issue
         Assert.Equal(totalPropertiesLineByLine, totalPropertiesFullSpan);
     }
+    
+    [Fact]
+    public void SerilogExpressionsExamples_HighlightsExpressionSyntax()
+    {
+        // This test verifies that Serilog.Expressions syntax in the actual Example\Program.cs is properly highlighted
+        
+        // Read the actual Program.cs file
+        var programCode = File.ReadAllText(_programPath);
+        
+        var textBuffer = MockTextBuffer.Create(programCode);
+        var classifier = new SerilogClassifier(textBuffer, _classificationRegistry);
+        var snapshot = textBuffer.CurrentSnapshot;
+        
+        // Process the entire file
+        var fullSpan = new SnapshotSpan(snapshot, 0, snapshot.Length);
+        var allClassifications = classifier.GetClassificationSpans(fullSpan);
+        
+        // Count expression-related classifications
+        var expressionProperties = allClassifications.Where(c => c.ClassificationType.Classification == "serilog.expression.property").Count();
+        var expressionOperators = allClassifications.Where(c => c.ClassificationType.Classification == "serilog.expression.operator").Count();
+        var expressionFunctions = allClassifications.Where(c => c.ClassificationType.Classification == "serilog.expression.function").Count();
+        var expressionKeywords = allClassifications.Where(c => c.ClassificationType.Classification == "serilog.expression.keyword").Count();
+        var expressionLiterals = allClassifications.Where(c => c.ClassificationType.Classification == "serilog.expression.literal").Count();
+        var expressionDirectives = allClassifications.Where(c => c.ClassificationType.Classification == "serilog.expression.directive").Count();
+        var expressionBuiltins = allClassifications.Where(c => c.ClassificationType.Classification == "serilog.expression.builtin").Count();
+        
+        Console.WriteLine($"Expression classifications found in Program.cs:");
+        Console.WriteLine($"  Properties: {expressionProperties}");
+        Console.WriteLine($"  Operators: {expressionOperators}");
+        Console.WriteLine($"  Functions: {expressionFunctions}");
+        Console.WriteLine($"  Keywords: {expressionKeywords}");
+        Console.WriteLine($"  Literals: {expressionLiterals}");
+        Console.WriteLine($"  Directives: {expressionDirectives}");
+        Console.WriteLine($"  Built-ins: {expressionBuiltins}");
+        
+        // Log some expression classifications for debugging
+        var expressionClassifications = allClassifications
+            .Where(c => c.ClassificationType.Classification.StartsWith("serilog.expression"))
+            .Take(20);
+        
+        Console.WriteLine($"\nFirst 20 expression classifications:");
+        foreach (var c in expressionClassifications)
+        {
+            Console.WriteLine($"  {c.ClassificationType.Classification}: '{c.Span.GetText()}'");
+        }
+
+        // Verify that expression syntax is being highlighted in the actual Program.cs
+        // The Program.cs SerilogExpressionsExamples method contains many expressions
+
+        // Based on the actual Program.cs content (lines 354-395), we expect:
+        // - Multiple Filter.ByExcluding and Filter.ByIncludingOnly calls with filter expressions
+        // - Multiple Enrich.WithComputed calls with computed property expressions
+        // - WriteTo.Conditional calls with conditional expressions
+        // - ExpressionTemplate instances with directives and built-ins
+
+        // These are the exact counts from the actual Program.cs content
+        Assert.True(expressionProperties >= 45, $"Expected at least 45 expression properties in Program.cs, found {expressionProperties}");
+        Assert.True(expressionOperators >= 35, $"Expected at least 35 expression operators, found {expressionOperators}");
+        Assert.True(expressionFunctions >= 11, $"Expected at least 11 expression functions, found {expressionFunctions}");
+        Assert.True(expressionKeywords >= 3, $"Expected at least 3 expression keywords, found {expressionKeywords}");
+        Assert.True(expressionLiterals >= 32, $"Expected at least 33 expression literals, found {expressionLiterals}");
+        Assert.True(expressionDirectives >= 12, $"Expected at least 12 expression directives, found {expressionDirectives}");
+        Assert.True(expressionBuiltins >= 10, $"Expected at least 10 built-in properties, found {expressionBuiltins}");
+    }
 }

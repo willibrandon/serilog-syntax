@@ -44,6 +44,42 @@ internal static class SerilogClassificationTypes
     /// </summary>
     public const string Alignment = "serilog.alignment";
 
+    // Expression syntax classification types
+    /// <summary>
+    /// Classification type name for expression properties.
+    /// </summary>
+    public const string ExpressionProperty = "serilog.expression.property";
+
+    /// <summary>
+    /// Classification type name for expression operators.
+    /// </summary>
+    public const string ExpressionOperator = "serilog.expression.operator";
+
+    /// <summary>
+    /// Classification type name for expression functions.
+    /// </summary>
+    public const string ExpressionFunction = "serilog.expression.function";
+
+    /// <summary>
+    /// Classification type name for expression keywords.
+    /// </summary>
+    public const string ExpressionKeyword = "serilog.expression.keyword";
+
+    /// <summary>
+    /// Classification type name for expression literals.
+    /// </summary>
+    public const string ExpressionLiteral = "serilog.expression.literal";
+
+    /// <summary>
+    /// Classification type name for expression template directives.
+    /// </summary>
+    public const string ExpressionDirective = "serilog.expression.directive";
+
+    /// <summary>
+    /// Classification type name for expression built-in properties.
+    /// </summary>
+    public const string ExpressionBuiltin = "serilog.expression.builtin";
+
     /// <summary>
     /// Classification type definition for property names.
     /// </summary>
@@ -92,4 +128,54 @@ internal static class SerilogClassificationTypes
     [Export(typeof(ClassificationTypeDefinition))]
     [Name(Alignment)]
     internal static ClassificationTypeDefinition AlignmentType = null;
+
+    // Expression classification type definitions
+    /// <summary>
+    /// Classification type definition for expression properties.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(ExpressionProperty)]
+    internal static ClassificationTypeDefinition ExpressionPropertyType = null;
+
+    /// <summary>
+    /// Classification type definition for expression operators.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(ExpressionOperator)]
+    internal static ClassificationTypeDefinition ExpressionOperatorType = null;
+
+    /// <summary>
+    /// Classification type definition for expression functions.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(ExpressionFunction)]
+    internal static ClassificationTypeDefinition ExpressionFunctionType = null;
+
+    /// <summary>
+    /// Classification type definition for expression keywords.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(ExpressionKeyword)]
+    internal static ClassificationTypeDefinition ExpressionKeywordType = null;
+
+    /// <summary>
+    /// Classification type definition for expression literals.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(ExpressionLiteral)]
+    internal static ClassificationTypeDefinition ExpressionLiteralType = null;
+
+    /// <summary>
+    /// Classification type definition for expression directives.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(ExpressionDirective)]
+    internal static ClassificationTypeDefinition ExpressionDirectiveType = null;
+
+    /// <summary>
+    /// Classification type definition for expression built-in properties.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(ExpressionBuiltin)]
+    internal static ClassificationTypeDefinition ExpressionBuiltinType = null;
 }

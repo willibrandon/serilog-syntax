@@ -13,22 +13,28 @@ internal static class SerilogCallDetector
     // Quick check strings for early rejection
     private static readonly string[] QuickCheckPatterns = 
     [
-        "Log", "log", "_log", "logger", "Logger", "outputTemplate"
+        "Log", "log", "_log", "logger", "Logger", "outputTemplate",
+        "Filter", "ByExcluding", "ByIncludingOnly", 
+        "WithComputed", "ExpressionTemplate", "Conditional", "When"
     ];
     
     private static readonly HashSet<string> SerilogMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "Verbose", "Debug", "Information", "Warning", "Error", "Critical", "Fatal", 
         "Write", "LogVerbose", "LogDebug", "LogInformation", "LogWarning", 
-        "LogError", "LogCritical", "LogFatal", "BeginScope"
+        "LogError", "LogCritical", "LogFatal", "BeginScope",
+        // Serilog.Expressions methods
+        "ByExcluding", "ByIncludingOnly", "WithComputed", "Conditional", "When",
+        "ExpressionTemplate"
     };
     
     /// <summary>
     /// Regex pattern that matches Serilog method calls and configuration templates.
     /// Supports both direct Serilog calls and Microsoft.Extensions.Logging integration.
+    /// Also supports Serilog.Expressions API calls.
     /// </summary>
     private static readonly Regex SerilogCallRegex = new(
-        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:outputTemplate\s*:\s*)",
+        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:outputTemplate\s*:\s*)|(?:\.?(?:Filter\.)?(?:ByExcluding|ByIncludingOnly)\s*\()|(?:\.?(?:Enrich\.)?(?:WithComputed|When)\s*\()|(?:\.?(?:WriteTo\.)?Conditional\s*\()|(?:new\s+ExpressionTemplate\s*\()",
         RegexOptions.Compiled);
 
     // Cache for recent match results
@@ -42,7 +48,30 @@ internal static class SerilogCallDetector
     /// <returns>True if the line contains a Serilog call, false otherwise</returns>
     public static bool IsSerilogCall(string line)
     {
-        // Quick rejection for lines that definitely don't contain Serilog calls
+        if (string.IsNullOrWhiteSpace(line))
+            return false;
+
+        // For multi-line blocks, check if ANY line contains Serilog patterns
+        if (line.Contains("\n"))
+        {
+            var lines = line.Split('\n');
+            foreach (var singleLine in lines)
+            {
+                if (IsSerilogCallSingleLine(singleLine))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        else
+        {
+            return IsSerilogCallSingleLine(line);
+        }
+    }
+
+    private static bool IsSerilogCallSingleLine(string line)
+    {
         if (string.IsNullOrWhiteSpace(line))
             return false;
             
@@ -72,6 +101,10 @@ internal static class SerilogCallDetector
         
         // Check for outputTemplate
         if (line.Contains("outputTemplate"))
+            return SerilogCallRegex.IsMatch(line);
+        
+        // Check for Serilog.Expressions patterns
+        if (line.Contains("Filter") || line.Contains("Enrich") || line.Contains("WriteTo") || line.Contains("ExpressionTemplate"))
             return SerilogCallRegex.IsMatch(line);
             
         return false;
