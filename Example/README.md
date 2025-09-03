@@ -35,6 +35,23 @@ This is a standalone console application that demonstrates all the features of t
 - **Complex formatting**: Format specifiers and alignment work in verbatim strings
 - **Mixed content**: Verbatim strings with positional parameters and operators
 
+### Raw String Literal Support (C# 11)
+- **Triple-quote strings**: Properties highlighted in `"""..."""` strings
+- **Multi-line raw strings**: No escape sequences needed
+- **Custom delimiters**: Support for 4+ quotes for complex scenarios
+
+### Serilog.Expressions
+- **Filter expressions**: `Filter.ByExcluding("RequestPath like '/health%'")`
+- **Conditional expressions**: `Filter.ByIncludingOnly("Level = 'Error' or StatusCode >= 500")`
+- **Computed properties**: `Enrich.WithComputed("ResponseTime", "Elapsed * 2")`
+- **Expression templates** with control flow:
+  - `{#if}`, `{#else}`, `{#end}` for conditional rendering
+  - `{#each}` for iteration over collections
+  - Built-in properties: `@t`, `@m`, `@l`, `@x`, `@i`, `@p`
+- **Operators**: `and`, `or`, `not`, `like`, `in`, `is null`, `=`, `<>`, `>`, `<`, `>=`, `<=`
+- **Functions**: `StartsWith()`, `EndsWith()`, `Contains()`, `Length()`, `Has()`
+- **Property paths**: `User.Name`, `Order.Customer.Address.City`
+
 ### Configuration Templates
 - **Output templates** in Serilog configuration
 - File sink templates with custom formatting
@@ -54,13 +71,28 @@ This is a standalone console application that demonstrates all the features of t
 
 Open `Program.cs` in Visual Studio with the Serilog Syntax extension installed to see:
 
-- **Pink braces** `{` `}` around properties
-- **Light blue** property names
-- **Yellow** destructuring `@` and stringification `$` operators  
-- **Light green** format specifiers and alignment
-- **Light purple** positional indices
-- **Immediate highlighting** as you type (before closing quotes)
+### Message Template Highlighting
+- **Purple braces** `{` `}` around properties
+- **Blue** property names
+- **Dark goldenrod** destructuring `@` and stringification `$` operators  
+- **Teal** format specifiers
+- **Red** alignment specifiers
+- **Dark violet** positional indices
+
+### Expression Syntax Highlighting
+- **Orange** for expression operators (`and`, `or`, `not`, `like`, `in`)
+- **Blue** for expression functions (`StartsWith()`, `Contains()`, etc.)
+- **Green** for string literals in expressions
+- **Purple** for numeric literals
+- **Dark cyan** for expression directives (`{#if}`, `{#each}`, `{#end}`)
+- **Dark blue** for built-in properties (`@t`, `@m`, `@l`)
+- **Teal** for property paths in expressions
+
+### Interactive Features
+- **Brace matching** when cursor is on `{` or `}`
 - **Light bulb navigation** from properties to arguments
+- **Immediate highlighting** as you type (before closing quotes)
+- **Multi-line support** for verbatim and raw strings
 
 ## Output
 
