@@ -121,6 +121,20 @@ Even with ""escaped quotes"" in the template",
             Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
             """, recordId, status, userName, userId, order, timestamp);
 
+        // Serilog.Expressions syntax
+        using var expressionLogger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .Filter.ByExcluding("RequestPath like '/health%' and StatusCode < 400")
+            .Enrich.WithComputed("IsError", "Level = 'Error' or Level = 'Fatal'")
+            .Enrich.WithProperty("RequestPath", "/api/orders")
+            .Enrich.WithProperty("StatusCode", 200)
+            .WriteTo.Console(new ExpressionTemplate(
+                "[{@t:HH:mm:ss} {@l:u3}] {#if IsError}❌{#else}✅{#end} {@m}\n{#if @x is not null}{@x}\n{#end}"))
+            .CreateLogger();
+
+        expressionLogger.Information("Order {OrderId} processed successfully for customer {@Customer} in {Duration}ms", 
+            "ORD-2024-0042", new { Name = "Bob Smith", Tier = "Premium" }, 127);
+
         await Task.Delay(100);
     }
 
