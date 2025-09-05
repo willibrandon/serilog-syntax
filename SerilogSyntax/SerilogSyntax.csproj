@@ -52,6 +52,7 @@
     <Compile Include="Classification\SerilogClassifier.cs" />
     <Compile Include="Classification\SerilogClassifierProvider.cs" />
     <Compile Include="Classification\StringConstants.cs" />
+    <Compile Include="Parsing\StringLiteralParser.cs" />
     <Compile Include="Classification\SyntaxTreeAnalyzer.cs" />
     <Compile Include="Diagnostics\DiagnosticLogger.cs" />
     <Compile Include="Expressions\ExpressionContext.cs" />
