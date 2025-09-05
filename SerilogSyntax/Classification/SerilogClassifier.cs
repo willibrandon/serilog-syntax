@@ -67,6 +67,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private const int MaxLookbackLines = 20;
     private const int MaxLookforwardLines = 50;
     private const int MaxVerbatimStringLookbackLines = 10;
+    // When detecting concatenated strings, look back up to 5 lines to find the Serilog call
+    private const int MaxConcatenationLookbackLines = 5;
 
     // Performance optimizations
     private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new();
@@ -300,7 +302,52 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     }
                     else
                     {
-                        // Check if this is a continuation of an ExpressionTemplate call
+                        // Check if this is a concatenated string that might be part of a Serilog call
+                        // This happens when VS sends us just a fragment like: "for user {UserId} " +
+                        var trimmedText = text.TrimStart();
+                        bool looksLikeConcatenatedTemplate = false;
+                        
+                        // Check if this line looks like a concatenated string with template syntax
+                        // It could end with + (continuation) or , (last string in concatenation)
+                        if ((trimmedText.StartsWith("\"") || trimmedText.StartsWith("@\"")) &&
+                            text.Contains("{") && text.Contains("}"))
+                        {
+                            // Check if this looks like it's part of a concatenation
+                            // Look for explicit concatenation operators or ending comma
+                            if (text.TrimEnd().EndsWith("+") || 
+                                text.TrimEnd().EndsWith("\" +") ||
+                                text.TrimEnd().EndsWith("\",") ||  // Last string in concatenation
+                                (trimmedText.StartsWith("\"") && (text.Contains(",") || text.Contains(")"))))  // String followed by args or closing paren
+                            {
+                                looksLikeConcatenatedTemplate = true;
+#if DEBUG
+                                DiagnosticLogger.Log($"Detected potential concatenated template fragment: '{text.Trim()}'");
+#endif
+                            }
+                        }
+                        
+                        if (looksLikeConcatenatedTemplate)
+                        {
+                            // Look at previous lines to see if there's a Serilog call that started the concatenation
+                            for (int i = currentLine.LineNumber - 1; i >= Math.Max(0, currentLine.LineNumber - MaxConcatenationLookbackLines); i--)
+                            {
+                                var checkLine = span.Snapshot.GetLineFromLineNumber(i);
+                                var checkText = checkLine.GetText();
+                                
+                                // Check if this line contains a Serilog call that might be using string concatenation
+                                if (SerilogCallDetector.IsSerilogCall(checkText) && 
+                                    (checkText.TrimEnd().EndsWith("+") || checkText.Contains("\" +")))
+                                {
+#if DEBUG
+                                    DiagnosticLogger.Log($"Found Serilog call with concatenation on line {i}: '{checkText.Trim()}'");
+#endif
+                                    insideString = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Also check if this is a continuation of an ExpressionTemplate call
                         // Look at previous lines to see if there's an unclosed ExpressionTemplate
                         for (int i = currentLine.LineNumber - 1; i >= Math.Max(0, currentLine.LineNumber - 10); i--)
                         {
@@ -311,7 +358,6 @@ internal class SerilogClassifier : IClassifier, IDisposable
                             {
                                 // Found ExpressionTemplate on a previous line
                                 // Now check if the current line is a string literal that could be part of it
-                                // We need a smarter check - if current line starts with quotes and contains template syntax
                                 var trimmedCurrentText = text.TrimStart();
 
                                 // Check if this line looks like a template string
@@ -464,10 +510,69 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 }
                 else
                 {
-                    // Find just the first string literal (normal case)
+                    // For regular Serilog calls, check if we have string concatenation
                     int searchStart = match.Index + match.Length;
-                    var stringLiteral = FindStringLiteral(text, searchStart, span.Start);
-                    allStringLiterals = stringLiteral.HasValue ? new List<(int, int, string, bool, int)> { stringLiteral.Value } : [];
+                    
+                    // Look ahead to see if there's string concatenation
+                    bool hasConcatenation = false;
+                    int checkPos = searchStart;
+                    int parenDepth = 1;
+                    bool inString = false;
+                    
+                    while (checkPos < text.Length && parenDepth > 0)
+                    {
+                        char c = text[checkPos];
+                        if (!inString)
+                        {
+                            if (c == '"' && !IsEscaped(text, checkPos))
+                                inString = true;
+                            else if (c == '(')
+                                parenDepth++;
+                            else if (c == ')')
+                                parenDepth--;
+                            else if (c == '+' && checkPos + 1 < text.Length)
+                            {
+                                // Look for string concatenation pattern: " + or +\s"
+                                int nextNonWhitespace = checkPos + 1;
+                                while (nextNonWhitespace < text.Length && char.IsWhiteSpace(text[nextNonWhitespace]))
+                                    nextNonWhitespace++;
+                                    
+                                if (nextNonWhitespace < text.Length && 
+                                    (text[nextNonWhitespace] == '"' || 
+                                     (text[nextNonWhitespace] == '@' && nextNonWhitespace + 1 < text.Length && text[nextNonWhitespace + 1] == '"')))
+                                {
+                                    hasConcatenation = true;
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (c == '"' && !IsEscaped(text, checkPos))
+                                inString = false;
+                        }
+
+                        checkPos++;
+                    }
+                    
+                    if (hasConcatenation)
+                    {
+                        // Find ALL concatenated string literals
+                        allStringLiterals = FindAllConcatenatedStrings(text, searchStart, span.Start);
+#if DEBUG
+                        DiagnosticLogger.Log($"Found {allStringLiterals.Count} strings in concatenation");
+                        foreach (var str in allStringLiterals)
+                        {
+                            DiagnosticLogger.Log($"  String: '{str.text}' (verbatim: {str.isVerbatim})");
+                        }
+#endif
+                    }
+                    else
+                    {
+                        // Find just the first string literal (simple case)
+                        var stringLiteral = FindStringLiteral(text, searchStart, span.Start);
+                        allStringLiterals = stringLiteral.HasValue ? new List<(int, int, string, bool, int)> { stringLiteral.Value } : [];
+                    }
                 }
 
 #if DEBUG
@@ -714,6 +819,90 @@ internal class SerilogClassifier : IClassifier, IDisposable
         }
     }
 
+    /// <summary>
+    /// Finds all concatenated string literals in a Serilog call.
+    /// </summary>
+    private List<(int start, int end, string text, bool isVerbatim, int quoteCount)> FindAllConcatenatedStrings(
+        string text, 
+        int startIndex, 
+        int spanStart)
+    {
+        var results = new List<(int start, int end, string text, bool isVerbatim, int quoteCount)>();
+        int currentPos = startIndex;
+        int parenDepth = 1;
+        
+        while (currentPos < text.Length && parenDepth > 0)
+        {
+            // Skip whitespace
+            while (currentPos < text.Length && char.IsWhiteSpace(text[currentPos]))
+                currentPos++;
+                
+            if (currentPos >= text.Length)
+                break;
+            
+            // Check for parentheses
+            if (text[currentPos] == '(')
+            {
+                parenDepth++;
+                currentPos++;
+                continue;
+            }
+            else if (text[currentPos] == ')')
+            {
+                parenDepth--;
+                currentPos++;
+                continue;
+            }
+            
+            // Try to parse a string literal (handles regular, verbatim @", and raw """ strings)
+            if (TryParseStringLiteral(text, currentPos, out var parsed))
+            {
+                // Determine string type
+                bool isVerbatim = currentPos < text.Length && text[currentPos] == '@';
+                int quoteCount = 1;
+                
+                // Check for raw string literal
+                if (text[currentPos] == '"')
+                {
+                    int countPos = currentPos;
+                    quoteCount = 0;
+                    while (countPos < text.Length && text[countPos] == '"')
+                    {
+                        quoteCount++;
+                        countPos++;
+                    }
+                }
+                
+                results.Add((spanStart + parsed.Start, spanStart + parsed.End, parsed.Content, isVerbatim, quoteCount));
+                
+                // Move past the string literal
+                currentPos = parsed.End + 1;
+                
+                // Skip whitespace after the string
+                while (currentPos < text.Length && char.IsWhiteSpace(text[currentPos]))
+                    currentPos++;
+                    
+                // Check for concatenation operator
+                if (currentPos < text.Length && text[currentPos] == '+')
+                {
+                    currentPos++; // Skip the + and continue looking for more strings
+                    continue;
+                }
+                else if (currentPos < text.Length && text[currentPos] == ',')
+                {
+                    // This is the next argument, not concatenation
+                    break;
+                }
+            }
+            else
+            {
+                currentPos++;
+            }
+        }
+        
+        return results;
+    }
+    
     /// <summary>
     /// Finds the bounds and content of a string literal starting from the given index.
     /// </summary>
@@ -1445,6 +1634,29 @@ internal class SerilogClassifier : IClassifier, IDisposable
     {
         var line = snapshot.GetLineFromPosition(position);
         return line.GetText();
+    }
+    
+    /// <summary>
+    /// Checks if a character at the given position is escaped.
+    /// Handles cases like \\" (escaped quote) and \\\\" (escaped backslash followed by quote).
+    /// </summary>
+    private bool IsEscaped(string text, int position)
+    {
+        if (position <= 0) return false;
+        
+        // Count consecutive backslashes before the position
+        int backslashCount = 0;
+        int checkPos = position - 1;
+        
+        while (checkPos >= 0 && text[checkPos] == '\\')
+        {
+            backslashCount++;
+            checkPos--;
+        }
+        
+        // If odd number of backslashes, the character is escaped
+        // If even number (including 0), it's not escaped
+        return backslashCount % 2 == 1;
     }
 
     /// <summary>
