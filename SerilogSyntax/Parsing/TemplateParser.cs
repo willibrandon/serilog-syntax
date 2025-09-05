@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 namespace SerilogSyntax.Parsing;
@@ -286,13 +285,9 @@ internal class TemplateParser
             }
         }
         
-        // Handle any unclosed properties at the end
-        if (state != ParseState.Outside && recovery.HasPartialProperty())
-        {
-            var partial = recovery.GetPartialProperty(template);
-            if (partial != null)
-                results.Add(partial);
-        }
+        // Don't add unclosed properties - they're invalid and cause spillover highlighting
+        // If we're still inside a property when we reach the end of the string,
+        // that means we never found a closing brace, so the property is invalid
 
         // Return all collected results
         foreach (var result in results)
@@ -385,50 +380,6 @@ internal class TemplateParser
                     return i;
             }
             return null;
-        }
-        
-        /// <summary>
-        /// Creates a partial property from the tracked state.
-        /// </summary>
-        public TemplateProperty GetPartialProperty(string template)
-        {
-            if (!HasPartialProperty())
-                return null;
-                
-            // If we have format or alignment specifiers, the property is malformed
-            // and likely to cause spillover - don't create a partial property
-            if (AlignmentStart > 0 || FormatStart > 0)
-            {
-                return null;
-            }
-            
-            // For simple unclosed properties (just {PropertyName), allow them for IDE experience
-            var length = Math.Min(template.Length - PropertyNameStart, 20);
-            if (length <= 0)
-                return null;
-                
-            var name = template.Substring(PropertyNameStart, length);
-            
-            // Check for any spillover patterns
-            if (name.Contains(" ") || name.Contains(",") || name.Contains(":"))
-            {
-                // If we see spaces, commas, or colons in what should be a simple property name,
-                // it's likely we've consumed too much - don't create a property
-                return null;
-            }
-            
-            return new TemplateProperty(
-                name,
-                PropertyNameStart,
-                length,
-                PropertyType,
-                PropertyStart,
-                -1,  // Indicates incomplete
-                null,
-                FormatStart,
-                OperatorIndex,
-                null,
-                AlignmentStart);
         }
     }
 

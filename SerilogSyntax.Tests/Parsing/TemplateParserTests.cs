@@ -150,13 +150,11 @@ public class TemplateParserTests
     }
 
     [Fact]
-    public void Parse_UnbalancedBraces_HandlesGracefully()
+    public void Parse_UnbalancedBraces_ReturnsEmpty()
     {
         var result = _parser.Parse("Hello {Name").ToList();
-        // With error recovery, parser now returns partial properties for better IDE experience
-        Assert.Single(result);
-        Assert.Equal("Name", result[0].Name);
-        Assert.Equal(-1, result[0].BraceEndIndex); // Indicates incomplete property
+        // Parser should not return incomplete properties to prevent spillover highlighting
+        Assert.Empty(result);
     }
 
     [Fact]

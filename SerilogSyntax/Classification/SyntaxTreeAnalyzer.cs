@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.VisualStudio.Text;
 using SerilogSyntax.Diagnostics;
 using SerilogSyntax.Expressions;
+using SerilogSyntax.Utilities;
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -25,8 +26,9 @@ internal static class SyntaxTreeAnalyzer
 
     /// <summary>
     /// Cache for invocation analysis results to avoid reanalyzing the same method calls
+    /// Key is a combination of snapshot hash and span to ensure uniqueness across different files/snapshots
     /// </summary>
-    private static readonly ConcurrentDictionary<int, bool> _invocationCache = new();
+    private static readonly ConcurrentDictionary<(int snapshotHash, int spanStart), bool> _invocationCache = new();
 
     /// <summary>
     /// Conditional diagnostic logging that only executes in DEBUG builds
@@ -208,7 +210,7 @@ internal static class SyntaxTreeAnalyzer
             }
 
             // If the current line itself contains a Serilog call, allow classification
-            if (Utilities.SerilogCallDetector.IsSerilogCall(currentLineText))
+            if (SerilogCallDetector.IsSerilogCall(currentLineText))
             {
                 LogDiagnostic($"[SyntaxTreeAnalyzer] Current line contains Serilog call pattern");
                 return true;
@@ -227,7 +229,7 @@ internal static class SyntaxTreeAnalyzer
                     var checkText = checkLine.GetText();
 
                     // Check if this line starts a Serilog call with an unclosed string
-                    if (Utilities.SerilogCallDetector.IsSerilogCall(checkText) &&
+                    if (SerilogCallDetector.IsSerilogCall(checkText) &&
                         (checkText.Contains("\"\"\"") || checkText.Contains("@\"")))
                     {
                         // This could be a continuation of a multi-line Serilog string
@@ -255,7 +257,7 @@ internal static class SyntaxTreeAnalyzer
 
                 // If the line appears to be inside a Serilog call, assume it is
                 // This prevents false negatives when Roslyn can't parse
-                if (Utilities.SerilogCallDetector.IsSerilogCall(lineText))
+                if (SerilogCallDetector.IsSerilogCall(lineText))
                 {
                     LogDiagnostic($"[SyntaxTreeAnalyzer] Fallback: Line matches Serilog pattern, returning true");
                     return true;
@@ -266,7 +268,7 @@ internal static class SyntaxTreeAnalyzer
                 {
                     var contextLine = snapshot.GetLineFromLineNumber(i);
                     var contextText = contextLine.GetText();
-                    if (Utilities.SerilogCallDetector.IsSerilogCall(contextText))
+                    if (SerilogCallDetector.IsSerilogCall(contextText))
                     {
                         LogDiagnostic($"[SyntaxTreeAnalyzer] Fallback: Found Serilog context on line {i}, returning true");
                         return true;
@@ -430,8 +432,10 @@ internal static class SyntaxTreeAnalyzer
     /// <returns>True if this is a Serilog method call, false otherwise</returns>
     private static bool IsSerilogMethodInvocation(InvocationExpressionSyntax invocation)
     {
-        // Use the span start as a simple cache key for this invocation
-        var cacheKey = invocation.Span.Start;
+        // Use a combination of the syntax tree hash and span position as cache key
+        // This ensures uniqueness across different test cases and files
+        var syntaxTree = invocation.SyntaxTree;
+        var cacheKey = (syntaxTree.GetText().GetHashCode(), invocation.Span.Start);
 
         return _invocationCache.GetOrAdd(cacheKey, _ =>
         {

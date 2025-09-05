@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using Xunit;
 using SerilogSyntax.Expressions;
 
@@ -312,5 +313,139 @@ public class ExpressionTokenizerTests
         var tokens = tokenizer.Tokenize().ToList();
         
         Assert.Empty(tokens);
+    }
+    
+    [Fact]
+    public void SetText_UpdatesTextAndResetsPosition()
+    {
+        // Arrange
+        var tokenizer = new ExpressionTokenizer("initial text");
+        var firstTokens = tokenizer.Tokenize().ToList();
+        Assert.Equal(2, firstTokens.Count); // Should have "initial" and "text"
+        
+        // Act - reuse tokenizer with new text
+        tokenizer.SetText("new content");
+        var secondTokens = tokenizer.Tokenize().ToList();
+        
+        // Assert - should tokenize new text successfully
+        Assert.Equal(2, secondTokens.Count);
+        Assert.Equal("new", secondTokens[0].Value);
+        Assert.Equal("content", secondTokens[1].Value);
+    }
+    
+    [Fact]
+    public void SetText_WithNull_HandlesGracefully()
+    {
+        // Arrange
+        var tokenizer = new ExpressionTokenizer("initial");
+        
+        // Act
+        tokenizer.SetText(null);
+        var tokens = tokenizer.Tokenize().ToList();
+        
+        // Assert - null becomes empty string
+        Assert.Empty(tokens);
+    }
+    
+    [Fact]
+    public void SetText_WithEmptyString_ClearsTokenizer()
+    {
+        // Arrange
+        var tokenizer = new ExpressionTokenizer("some text");
+        
+        // Act
+        tokenizer.SetText("");
+        var tokens = tokenizer.Tokenize().ToList();
+        
+        // Assert
+        Assert.Empty(tokens);
+    }
+    
+    [Fact]
+    public void SetText_AllowsMultipleReuse()
+    {
+        // Arrange
+        var tokenizer = new ExpressionTokenizer("first");
+        
+        // Act & Assert - multiple reuses
+        tokenizer.SetText("true");
+        var tokens1 = tokenizer.Tokenize().ToList();
+        Assert.Single(tokens1);
+        Assert.Equal(TokenType.BooleanLiteral, tokens1[0].Type);
+        
+        tokenizer.SetText("123");
+        var tokens2 = tokenizer.Tokenize().ToList();
+        Assert.Single(tokens2);
+        Assert.Equal(TokenType.NumberLiteral, tokens2[0].Type);
+        
+        tokenizer.SetText("'string'");
+        var tokens3 = tokenizer.Tokenize().ToList();
+        Assert.Single(tokens3);
+        Assert.Equal(TokenType.StringLiteral, tokens3[0].Type);
+    }
+    
+    [Fact]
+    public void IsHexDigit_ValidHexDigits_ReturnsTrue()
+    {
+        // Use reflection to test private method
+        var tokenizer = new ExpressionTokenizer("");
+        var isHexDigitMethod = typeof(ExpressionTokenizer)
+            .GetMethod("IsHexDigit", BindingFlags.NonPublic | BindingFlags.Instance);
+        
+        Assert.NotNull(isHexDigitMethod);
+        
+        // Test all valid hex digits
+        var validHexChars = "0123456789abcdefABCDEF";
+        foreach (var ch in validHexChars)
+        {
+            var result = (bool)isHexDigitMethod.Invoke(tokenizer, [ch]);
+            Assert.True(result, $"Character '{ch}' should be recognized as hex digit");
+        }
+    }
+    
+    [Fact]
+    public void IsHexDigit_InvalidCharacters_ReturnsFalse()
+    {
+        // Use reflection to test private method
+        var tokenizer = new ExpressionTokenizer("");
+        var isHexDigitMethod = typeof(ExpressionTokenizer)
+            .GetMethod("IsHexDigit", BindingFlags.NonPublic | BindingFlags.Instance);
+        
+        Assert.NotNull(isHexDigitMethod);
+        
+        // Test invalid characters
+        var invalidChars = "ghijklmnopqrstuvwxyzGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+-=[]{}|;:',.<>?/ ";
+        foreach (var ch in invalidChars)
+        {
+            var result = (bool)isHexDigitMethod.Invoke(tokenizer, [ch]);
+            Assert.False(result, $"Character '{ch}' should NOT be recognized as hex digit");
+        }
+    }
+    
+    [Fact]
+    public void IsHexDigit_EdgeCases_CorrectResults()
+    {
+        // Use reflection to test private method
+        var tokenizer = new ExpressionTokenizer("");
+        var isHexDigitMethod = typeof(ExpressionTokenizer)
+            .GetMethod("IsHexDigit", BindingFlags.NonPublic | BindingFlags.Instance);
+        
+        Assert.NotNull(isHexDigitMethod);
+        
+        // Test boundary conditions
+        Assert.True((bool)isHexDigitMethod.Invoke(tokenizer, ['0'])); // First digit
+        Assert.True((bool)isHexDigitMethod.Invoke(tokenizer, ['9'])); // Last digit
+        Assert.True((bool)isHexDigitMethod.Invoke(tokenizer, ['a'])); // First lowercase hex
+        Assert.True((bool)isHexDigitMethod.Invoke(tokenizer, ['f'])); // Last lowercase hex
+        Assert.True((bool)isHexDigitMethod.Invoke(tokenizer, ['A'])); // First uppercase hex
+        Assert.True((bool)isHexDigitMethod.Invoke(tokenizer, ['F'])); // Last uppercase hex
+        
+        // Just outside boundaries
+        Assert.False((bool)isHexDigitMethod.Invoke(tokenizer, ['/'])); // Just before '0'
+        Assert.False((bool)isHexDigitMethod.Invoke(tokenizer, [':'])); // Just after '9'
+        Assert.False((bool)isHexDigitMethod.Invoke(tokenizer, ['`'])); // Just before 'a'
+        Assert.False((bool)isHexDigitMethod.Invoke(tokenizer, ['g'])); // Just after 'f'
+        Assert.False((bool)isHexDigitMethod.Invoke(tokenizer, ['@'])); // Just before 'A'
+        Assert.False((bool)isHexDigitMethod.Invoke(tokenizer, ['G'])); // Just after 'F'
     }
 }

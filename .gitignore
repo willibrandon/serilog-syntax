@@ -179,6 +179,10 @@ coverage*.info
 *.coverage
 *.coveragexml
 
+# Coverage report directories
+coverage-report/
+coverage-report-*/
+
 # NCrunch
 _NCrunch_*
 .NCrunch_*
@@ -429,3 +433,7 @@ FodyWeavers.xsd
 
 # Claude AI files
 .claude/
+
+# Test/temporary files
+test-detector.cs
+test-detector.exe

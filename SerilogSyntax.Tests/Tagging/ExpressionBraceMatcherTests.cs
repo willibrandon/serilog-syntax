@@ -336,4 +336,170 @@ public class ExpressionBraceMatcherTests
         Assert.Contains(tags, t => t.Span.Start.Position == secondOpenPos);
         Assert.Contains(tags, t => t.Span.Start.Position == secondClosePos);
     }
+
+    #region Expression Method Coverage Tests
+
+    [Fact]
+    public void ExpressionBraceMatching_MaxExpressionLengthExceeded_NoMatch()
+    {
+        // Create a very long expression that exceeds MaxExpressionLength (500 chars)
+        var longExpression = new string('A', 600);
+        var text = $"new ExpressionTemplate(\"{{{longExpression}}}\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position on opening brace
+        var openBracePos = text.IndexOf("{A");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, openBracePos));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // Should not find match due to exceeding MaxExpressionLength
+        Assert.Empty(tags);
+    }
+
+    [Fact]
+    public void ExpressionBraceMatching_DeepNestedBraces()
+    {
+        var text = "new ExpressionTemplate(\"{#if Level = 'Error'} then {Value} else {Default} {#end}\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position on the {Value} opening brace (nested inside the #if)
+        var valueOpenPos = text.IndexOf("{Value");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, valueOpenPos));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // The implementation should support nested braces in expressions
+        Assert.Equal(2, tags.Count);
+        Assert.Contains(tags, t => t.Span.Start.Position == valueOpenPos);
+        Assert.Contains(tags, t => t.Span.Start.Position == valueOpenPos + 6); // Closing } after "Value"
+    }
+
+    [Fact]
+    public void ExpressionBraceMatching_StringBoundaryStopsSearch()
+    {
+        var text = "new ExpressionTemplate(\"{@t\" + \"different string {Name}\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position on opening brace that should not match across string boundaries
+        var openBracePos = text.IndexOf("{@t");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, openBracePos));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // Should not find match due to string boundary (quote before {Name})
+        Assert.Empty(tags);
+    }
+
+    [Fact]
+    public void ExpressionBraceMatching_EscapedQuoteInString()
+    {
+        var text = "new ExpressionTemplate(\"{@t} with \\\"escaped quote\\\" and {Name}\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position on opening brace of {Name}
+        var openBracePos = text.IndexOf("{Name");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, openBracePos));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        Assert.Equal(2, tags.Count);
+        Assert.Contains(tags, t => t.Span.Start.Position == openBracePos);
+        Assert.Contains(tags, t => t.Span.Start.Position == openBracePos + 5); // Closing }
+    }
+
+    [Fact]
+    public void ExpressionBraceMatching_EscapedBracesInExpression()
+    {
+        var text = "new ExpressionTemplate(\"before {{{{ and {RealProp} after\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position on opening brace of {RealProp}
+        var openBracePos = text.IndexOf("{RealProp");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, openBracePos));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        Assert.Equal(2, tags.Count);
+        Assert.Contains(tags, t => t.Span.Start.Position == openBracePos);
+        Assert.Contains(tags, t => t.Span.Start.Position == openBracePos + 9); // Closing }
+    }
+
+    [Fact]
+    public void ExpressionBraceMatching_BackwardSearch_EscapedBraces()
+    {
+        var text = "new ExpressionTemplate(\"{{{{ {RealProp} }}}}\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position AFTER the closing brace of {RealProp} (VS standard)
+        var closeBracePos = text.IndexOf("} }}}}");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, closeBracePos + 1));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        Assert.Equal(2, tags.Count);
+        var openBracePos = text.IndexOf("{RealProp");
+        Assert.Contains(tags, t => t.Span.Start.Position == openBracePos);
+        Assert.Contains(tags, t => t.Span.Start.Position == closeBracePos);
+    }
+
+    [Fact]
+    public void ExpressionBraceMatching_BackwardSearch_StringBoundary()
+    {
+        var text = "var x = \"other {thing}\" + new ExpressionTemplate(\"dangling}\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position AFTER the dangling closing brace
+        var danglingClosePos = text.IndexOf("dangling}") + 8;
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, danglingClosePos + 1));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // Should not match due to string boundary (quote after "other {thing}")
+        Assert.Empty(tags);
+    }
+
+    [Fact]
+    public void ExpressionBraceMatching_MaxLengthBackwardSearch()
+    {
+        // Create a large gap between braces that exceeds MaxExpressionLength (500)
+        var longContent = new string('A', 600);
+        var text = $"new ExpressionTemplate(\"{{{longContent}}}\")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position AFTER the closing brace
+        var closeBracePos = text.LastIndexOf("}");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, closeBracePos + 1));
+        
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // Should not find match due to exceeding MaxExpressionLength in backward search
+        Assert.Empty(tags);
+    }
+
+    #endregion
 }

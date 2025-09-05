@@ -40,16 +40,15 @@ public class ErrorRecoveryTests
     }
 
     [Fact]
-    public void Parse_IncompleteTemplateAtEnd_ReturnsPartial()
+    public void Parse_IncompleteTemplateAtEnd_IgnoresIncomplete()
     {
         var template = "Complete {First} and partial {Incomple";
         var result = _parser.Parse(template).ToList();
         
-        // Should return both complete and partial properties
-        Assert.Equal(2, result.Count);
+        // Should only return complete properties, not incomplete ones
+        Assert.Single(result);
         Assert.Equal("First", result[0].Name);
-        Assert.Equal("Incomple", result[1].Name);
-        Assert.Equal(-1, result[1].BraceEndIndex); // Partial property
+        // Incomplete property "Incomple" should NOT be returned to prevent spillover
     }
 
     [Fact]
@@ -90,13 +89,13 @@ public class ErrorRecoveryTests
     }
 
     [Fact]
-    public void Parse_MultipleUnclosedProperties_HandlesAll()
+    public void Parse_MultipleUnclosedProperties_ReturnsNone()
     {
         var template = "{First {Second {Third";
         var result = _parser.Parse(template).ToList();
         
-        // Should find at least one partial property
-        Assert.NotEmpty(result);
-        Assert.Contains(result, p => p.BraceEndIndex == -1); // At least one incomplete
+        // Should return no properties since none are properly closed
+        Assert.Empty(result);
+        // All properties are incomplete and should be ignored to prevent spillover
     }
 }
