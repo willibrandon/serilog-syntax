@@ -20,39 +20,6 @@ internal class TemplateProperty(
     int alignmentStartIndex = -1)
 {
     /// <summary>
-    /// Creates a standard property {PropertyName}.
-    /// </summary>
-    public static TemplateProperty CreateStandard(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex)
-    {
-        return new TemplateProperty(name, startIndex, length, PropertyType.Standard, braceStartIndex, braceEndIndex);
-    }
-
-    /// <summary>
-    /// Creates a destructured property {@PropertyName}.
-    /// </summary>
-    public static TemplateProperty CreateDestructured(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex, int operatorIndex)
-    {
-        return new TemplateProperty(name, startIndex, length, PropertyType.Destructured, braceStartIndex, braceEndIndex, 
-            operatorIndex: operatorIndex);
-    }
-
-    /// <summary>
-    /// Creates a stringified property {$PropertyName}.
-    /// </summary>
-    public static TemplateProperty CreateStringified(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex, int operatorIndex)
-    {
-        return new TemplateProperty(name, startIndex, length, PropertyType.Stringified, braceStartIndex, braceEndIndex,
-            operatorIndex: operatorIndex);
-    }
-
-    /// <summary>
-    /// Creates a positional property {0}.
-    /// </summary>
-    public static TemplateProperty CreatePositional(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex)
-    {
-        return new TemplateProperty(name, startIndex, length, PropertyType.Positional, braceStartIndex, braceEndIndex);
-    }
-    /// <summary>
     /// Gets the name of the property (without operators or braces).
     /// </summary>
     public string Name { get; } = name ?? string.Empty;
@@ -106,30 +73,38 @@ internal class TemplateProperty(
     /// Gets the starting index of the alignment including the comma.
     /// </summary>
     public int AlignmentStartIndex { get; } = alignmentStartIndex;
-}
-
-/// <summary>
-/// Specifies the type of a Serilog template property.
-/// </summary>
-internal enum PropertyType
-{
-    /// <summary>
-    /// Standard property rendered using ToString() (e.g., {Property}).
-    /// </summary>
-    Standard,
 
     /// <summary>
-    /// Destructured property that serializes object structure (e.g., {@Property}).
+    /// Creates a standard property {PropertyName}.
     /// </summary>
-    Destructured,
+    public static TemplateProperty CreateStandard(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Standard, braceStartIndex, braceEndIndex);
+    }
 
     /// <summary>
-    /// Stringified property forced to render as a string (e.g., {$Property}).
+    /// Creates a destructured property {@PropertyName}.
     /// </summary>
-    Stringified,
+    public static TemplateProperty CreateDestructured(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex, int operatorIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Destructured, braceStartIndex, braceEndIndex, 
+            operatorIndex: operatorIndex);
+    }
 
     /// <summary>
-    /// Positional property referenced by index (e.g., {0}, {1}).
+    /// Creates a stringified property {$PropertyName}.
     /// </summary>
-    Positional
+    public static TemplateProperty CreateStringified(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex, int operatorIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Stringified, braceStartIndex, braceEndIndex,
+            operatorIndex: operatorIndex);
+    }
+
+    /// <summary>
+    /// Creates a positional property {0}.
+    /// </summary>
+    public static TemplateProperty CreatePositional(string name, int startIndex, int length, int braceStartIndex, int braceEndIndex)
+    {
+        return new TemplateProperty(name, startIndex, length, PropertyType.Positional, braceStartIndex, braceEndIndex);
+    }
 }

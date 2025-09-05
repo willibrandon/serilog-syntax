@@ -5,7 +5,6 @@ using SerilogSyntax.Expressions;
 using SerilogSyntax.Parsing;
 using SerilogSyntax.Utilities;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -34,8 +33,8 @@ namespace SerilogSyntax.Classification;
 /// only the currently edited line, not the complete multi-line string context.
 /// 
 /// PERFORMANCE OPTIMIZATIONS:
-/// - Template parsing results cached in _templateCache
-/// - Classification spans cached in _classificationCache
+/// - Template parsing results cached via CacheManager
+/// - Classification spans cached via CacheManager
 /// - Raw string region detection cached in MultiLineStringDetector
 /// - Smart cache invalidation only clears affected lines based on change type
 /// </remarks>
@@ -46,6 +45,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private readonly TemplateParser _parser;
     private readonly StringLiteralParser _stringLiteralParser;
     private readonly MultiLineStringDetector _multiLineStringDetector;
+    private readonly CacheManager _cacheManager;
 
     // Template classification types
     private readonly IClassificationType _propertyNameType;
@@ -73,10 +73,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private const int MaxConcatenationLookbackLines = 5;
 
     // Performance optimizations
-    private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new();
-    private readonly object _cacheLock = new();
     private ITextSnapshot _lastSnapshot;
-    private readonly ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>> _classificationCache = new();
 
 
     /// <summary>
@@ -91,6 +88,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
         _parser = new TemplateParser();
         _stringLiteralParser = new StringLiteralParser();
         _multiLineStringDetector = new MultiLineStringDetector();
+        _cacheManager = new CacheManager(_parser);
 
         // Get template classification types
         _propertyNameType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.PropertyName);
@@ -185,7 +183,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
         }
 
         // Remove only affected spans from classification cache
-        InvalidateCacheForSpans(changedSpans);
+        _cacheManager.InvalidateCacheForSpans(changedSpans);
 
         // Invalidate raw string region cache for affected lines
         foreach (var lineNum in linesToInvalidate)
@@ -194,10 +192,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
         }
 
         // Update snapshot reference
-        lock (_cacheLock)
-        {
-            _lastSnapshot = snapshot;
-        }
+        _lastSnapshot = snapshot;
 
         // Raise classification changed for affected areas only
         foreach (var span in changedSpans)
@@ -210,30 +205,6 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// Invalidates cache entries that overlap with the given spans.
     /// </summary>
     /// <param name="spans">The spans to invalidate cache for.</param>
-    private void InvalidateCacheForSpans(List<SnapshotSpan> spans)
-    {
-        var keysToRemove = new List<SnapshotSpan>();
-
-        lock (_cacheLock)
-        {
-            foreach (var cachedSpan in _classificationCache.Keys)
-            {
-                foreach (var changedSpan in spans)
-                {
-                    if (cachedSpan.OverlapsWith(changedSpan))
-                    {
-                        keysToRemove.Add(cachedSpan);
-                        break;
-                    }
-                }
-            }
-
-            foreach (var key in keysToRemove)
-            {
-                _classificationCache.TryRemove(key, out _);
-            }
-        }
-    }
 
     /// <summary>
     /// Event raised when classifications have changed.
@@ -260,7 +231,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
 #endif
 
         // Check cache first - avoid expensive operations if possible
-        if (_classificationCache.TryGetValue(span, out List<ClassificationSpan> cachedResult))
+        if (_cacheManager.TryGetCachedClassifications(span, out List<ClassificationSpan> cachedResult))
         {
             return cachedResult;
         }
@@ -445,7 +416,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                             else
                             {
                                 // We're inside a multi-line string that is actually a Serilog template
-                                var properties = GetCachedTemplateProperties(text);
+                                var properties = _cacheManager.GetCachedTemplateProperties(text);
 
                                 // Create classifications for properties in this span
                                 foreach (var property in properties)
@@ -463,7 +434,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     }
                 }
 
-                _classificationCache.TryAdd(span, classifications);
+                _cacheManager.CacheClassifications(span, classifications);
                 return classifications;
             }
 
@@ -672,7 +643,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     else
                     {
                         // Parse as regular template
-                        var properties = GetCachedTemplateProperties(templateText);
+                        var properties = _cacheManager.GetCachedTemplateProperties(templateText);
 
 #if DEBUG
                         if (templateText.Contains("Message"))
@@ -709,7 +680,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
         }
 
         // Cache the result for future requests
-        _classificationCache.TryAdd(span, classifications);
+        _cacheManager.CacheClassifications(span, classifications);
 
 #if DEBUG
         if (spanText.Contains("Message"))
@@ -726,22 +697,6 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// </summary>
     /// <param name="template">The template string to parse.</param>
     /// <returns>List of template properties found in the template.</returns>
-    private List<TemplateProperty> GetCachedTemplateProperties(string template)
-    {
-        // Use template cache to avoid re-parsing identical templates
-        return _templateCache.GetOrAdd(template, t =>
-        {
-            try
-            {
-                return [.. _parser.Parse(t)];
-            }
-            catch
-            {
-                // Return empty list on parse error
-                return [];
-            }
-        });
-    }
 
     /// <summary>
     /// Adds classification spans for a single template property and its components.
@@ -1035,8 +990,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
         _buffer.Changed -= OnBufferChanged;
 
         // Clear caches
-        _templateCache.Clear();
-        _classificationCache.Clear();
+        _cacheManager.Clear();
         _multiLineStringDetector.ClearCache();
     }
 }

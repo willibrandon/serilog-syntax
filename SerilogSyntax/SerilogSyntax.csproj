@@ -52,6 +52,7 @@
     <Compile Include="Classification\SerilogClassifier.cs" />
     <Compile Include="Classification\SerilogClassifierProvider.cs" />
     <Compile Include="Classification\StringConstants.cs" />
+    <Compile Include="Parsing\PropertyType.cs" />
     <Compile Include="Parsing\StringLiteralParser.cs" />
     <Compile Include="Classification\SyntaxTreeAnalyzer.cs" />
     <Compile Include="Diagnostics\DiagnosticLogger.cs" />
@@ -70,6 +71,7 @@
     <Compile Include="Tagging\SerilogBraceHighlightState.cs" />
     <Compile Include="Tagging\SerilogBraceEscCommandHandler.cs" />
     <Compile Include="Tagging\SerilogBraceMatchProvider.cs" />
+    <Compile Include="Utilities\CacheManager.cs" />
     <Compile Include="Utilities\LruCache.cs" />
     <Compile Include="Utilities\MultiLineStringDetector.cs" />
     <Compile Include="Utilities\SerilogCallDetector.cs" />
