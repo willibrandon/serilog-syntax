@@ -46,24 +46,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private readonly StringLiteralParser _stringLiteralParser;
     private readonly MultiLineStringDetector _multiLineStringDetector;
     private readonly CacheManager _cacheManager;
+    private readonly ClassificationSpanBuilder _spanBuilder;
 
-    // Template classification types
-    private readonly IClassificationType _propertyNameType;
-    private readonly IClassificationType _destructureOperatorType;
-    private readonly IClassificationType _stringifyOperatorType;
-    private readonly IClassificationType _formatSpecifierType;
-    private readonly IClassificationType _propertyBraceType;
-    private readonly IClassificationType _positionalIndexType;
-    private readonly IClassificationType _alignmentType;
-
-    // Expression classification types
-    private readonly IClassificationType _expressionPropertyType;
-    private readonly IClassificationType _expressionOperatorType;
-    private readonly IClassificationType _expressionFunctionType;
-    private readonly IClassificationType _expressionKeywordType;
-    private readonly IClassificationType _expressionLiteralType;
-    private readonly IClassificationType _expressionDirectiveType;
-    private readonly IClassificationType _expressionBuiltinType;
 
     // Constants for magic numbers
     private const int MaxLookbackLines = 20;
@@ -89,24 +73,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
         _stringLiteralParser = new StringLiteralParser();
         _multiLineStringDetector = new MultiLineStringDetector();
         _cacheManager = new CacheManager(_parser);
-
-        // Get template classification types
-        _propertyNameType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.PropertyName);
-        _destructureOperatorType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.DestructureOperator);
-        _stringifyOperatorType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.StringifyOperator);
-        _formatSpecifierType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.FormatSpecifier);
-        _propertyBraceType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.PropertyBrace);
-        _positionalIndexType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.PositionalIndex);
-        _alignmentType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.Alignment);
-
-        // Get expression classification types
-        _expressionPropertyType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.ExpressionProperty);
-        _expressionOperatorType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.ExpressionOperator);
-        _expressionFunctionType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.ExpressionFunction);
-        _expressionKeywordType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.ExpressionKeyword);
-        _expressionLiteralType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.ExpressionLiteral);
-        _expressionDirectiveType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.ExpressionDirective);
-        _expressionBuiltinType = _classificationRegistry.GetClassificationType(SerilogClassificationTypes.ExpressionBuiltin);
+        _spanBuilder = new ClassificationSpanBuilder(_classificationRegistry);
 
         // Set up cache invalidation on buffer changes
         _buffer.Changed += OnBufferChanged;
@@ -411,7 +378,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                                 // Create classifications for expression regions
                                 int offsetInSnapshot = span.Start;
                                 DiagnosticLogger.Log($"[SerilogClassifier] Adding {expressionRegions.Count()} expression classifications at offset {offsetInSnapshot}");
-                                AddExpressionClassifications(classifications, span.Snapshot, offsetInSnapshot, expressionRegions);
+                                _spanBuilder.AddExpressionClassifications(classifications, span.Snapshot, offsetInSnapshot, expressionRegions);
                             }
                             else
                             {
@@ -423,7 +390,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                                 {
                                     // Properties are relative to the start of this span's text
                                     int offsetInSnapshot = span.Start;
-                                    AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
+                                    _spanBuilder.AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
                                 }
                             }
                         }
@@ -638,7 +605,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
 
                         // Create classification spans for expression elements
                         int offsetInSnapshot = literalStart + (quoteCount > 0 ? quoteCount : (isVerbatim ? 2 : 1));
-                        AddExpressionClassifications(classifications, span.Snapshot, offsetInSnapshot, expressionRegions);
+                        _spanBuilder.AddExpressionClassifications(classifications, span.Snapshot, offsetInSnapshot, expressionRegions);
                     }
                     else
                     {
@@ -662,7 +629,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                             // Regular strings ("...") need +1
                             int offsetInSnapshot = literalStart + (quoteCount > 0 ? quoteCount : (isVerbatim ? 2 : 1));
 
-                            AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
+                            _spanBuilder.AddPropertyClassifications(classifications, span.Snapshot, offsetInSnapshot, property);
                         }
                     }
                 } // End of foreach stringLiteral in allStringLiterals
@@ -705,77 +672,6 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// <param name="snapshot">The text snapshot being classified.</param>
     /// <param name="offsetInSnapshot">The offset within the snapshot where the template starts.</param>
     /// <param name="property">The template property to classify.</param>
-    private void AddPropertyClassifications(
-        List<ClassificationSpan> classifications,
-        ITextSnapshot snapshot,
-        int offsetInSnapshot,
-        TemplateProperty property)
-    {
-        try
-        {
-            // Classify braces
-            if (_propertyBraceType != null)
-            {
-                // Opening brace
-                var openBraceSpan = new SnapshotSpan(snapshot,
-                    offsetInSnapshot + property.BraceStartIndex, 1);
-                classifications.Add(new ClassificationSpan(openBraceSpan, _propertyBraceType));
-
-                // Closing brace
-                var closeBraceSpan = new SnapshotSpan(snapshot,
-                    offsetInSnapshot + property.BraceEndIndex, 1);
-                classifications.Add(new ClassificationSpan(closeBraceSpan, _propertyBraceType));
-            }
-
-            // Classify operators
-            if (property.Type == PropertyType.Destructured && _destructureOperatorType != null)
-            {
-                var operatorSpan = new SnapshotSpan(snapshot,
-                    offsetInSnapshot + property.OperatorIndex, 1);
-                classifications.Add(new ClassificationSpan(operatorSpan, _destructureOperatorType));
-            }
-            else if (property.Type == PropertyType.Stringified && _stringifyOperatorType != null)
-            {
-                var operatorSpan = new SnapshotSpan(snapshot,
-                    offsetInSnapshot + property.OperatorIndex, 1);
-                classifications.Add(new ClassificationSpan(operatorSpan, _stringifyOperatorType));
-            }
-
-            // Classify property name
-            var classificationType = property.Type == PropertyType.Positional
-                ? _positionalIndexType
-                : _propertyNameType;
-
-            if (classificationType != null)
-            {
-                var nameSpan = new SnapshotSpan(snapshot,
-                    offsetInSnapshot + property.StartIndex, property.Length);
-                classifications.Add(new ClassificationSpan(nameSpan, classificationType));
-            }
-
-            // Classify alignment
-            if (!string.IsNullOrEmpty(property.Alignment) && _alignmentType != null)
-            {
-                var alignmentSpan = new SnapshotSpan(snapshot,
-                    offsetInSnapshot + property.AlignmentStartIndex,
-                    property.Alignment.Length);
-                classifications.Add(new ClassificationSpan(alignmentSpan, _alignmentType));
-            }
-
-            // Classify format specifier
-            if (!string.IsNullOrEmpty(property.FormatSpecifier) && _formatSpecifierType != null)
-            {
-                var formatSpan = new SnapshotSpan(snapshot,
-                    offsetInSnapshot + property.FormatStartIndex,
-                    property.FormatSpecifier.Length);
-                classifications.Add(new ClassificationSpan(formatSpan, _formatSpecifierType));
-            }
-        }
-        catch
-        {
-            // Ignore individual property classification errors
-        }
-    }
 
     /// <summary>
     /// Checks if the given span is inside an unclosed verbatim string literal.
@@ -921,65 +817,6 @@ internal class SerilogClassifier : IClassifier, IDisposable
     /// <param name="snapshot">The text snapshot being classified.</param>
     /// <param name="offsetInSnapshot">The offset within the snapshot where the expression starts.</param>
     /// <param name="regions">The classified regions to add.</param>
-    private void AddExpressionClassifications(
-        List<ClassificationSpan> classifications,
-        ITextSnapshot snapshot,
-        int offsetInSnapshot,
-        IEnumerable<ClassifiedRegion> regions)
-    {
-#if DEBUG
-        var regionsList = regions.ToList();
-        DiagnosticLogger.Log($"AddExpressionClassifications: Processing {regionsList.Count} regions at offset {offsetInSnapshot}");
-#endif
-        foreach (var region in regions)
-        {
-            IClassificationType classificationType = region.ClassificationType switch
-            {
-                SerilogClassificationTypes.ExpressionProperty => _expressionPropertyType,
-                SerilogClassificationTypes.ExpressionOperator => _expressionOperatorType,
-                SerilogClassificationTypes.ExpressionFunction => _expressionFunctionType,
-                SerilogClassificationTypes.ExpressionKeyword => _expressionKeywordType,
-                SerilogClassificationTypes.ExpressionLiteral => _expressionLiteralType,
-                SerilogClassificationTypes.ExpressionDirective => _expressionDirectiveType,
-                SerilogClassificationTypes.ExpressionBuiltin => _expressionBuiltinType,
-                SerilogClassificationTypes.FormatSpecifier => _formatSpecifierType,
-                SerilogClassificationTypes.PropertyBrace => _propertyBraceType,
-                SerilogClassificationTypes.PropertyName => _propertyNameType,
-                _ => null
-            };
-
-            if (classificationType != null)
-            {
-                try
-                {
-                    var span = new SnapshotSpan(snapshot, offsetInSnapshot + region.Start, region.Length);
-                    var classificationSpan = new ClassificationSpan(span, classificationType);
-                    classifications.Add(classificationSpan);
-#if DEBUG
-                    DiagnosticLogger.Log($"  Added classification: {region.ClassificationType} at {offsetInSnapshot + region.Start}, " +
-                        $"len {region.Length} = '{region.Text}'");
-#endif
-                }
-                catch (Exception ex)
-                {
-#if DEBUG
-                    DiagnosticLogger.Log($"  Failed to add classification: {region.ClassificationType} at {offsetInSnapshot + region.Start}, " +
-                        $"len {region.Length} = '{region.Text}' - Error: {ex.Message}");
-#else
-                    _ = ex; // Suppress unused variable warning
-#endif
-                    // Ignore classification errors for individual regions
-                }
-            }
-#if DEBUG
-            else
-            {
-                DiagnosticLogger.Log($"  Skipped region (null classification type): {region.ClassificationType} at {region.Start}, " +
-                    $"len {region.Length} = '{region.Text}'");
-            }
-#endif
-        }
-    }
 
     /// <summary>
     /// Disposes resources and unsubscribes from buffer events.

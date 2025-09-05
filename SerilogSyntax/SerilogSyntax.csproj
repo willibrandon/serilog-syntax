@@ -46,6 +46,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Classification\ClassificationSpanBuilder.cs" />
     <Compile Include="Classification\ClassifiedRegion.cs" />
     <Compile Include="Classification\SerilogClassificationFormats.cs" />
     <Compile Include="Classification\SerilogClassificationTypes.cs" />

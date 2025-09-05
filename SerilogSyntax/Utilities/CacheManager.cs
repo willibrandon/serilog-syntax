@@ -3,24 +3,17 @@ using Microsoft.VisualStudio.Text.Classification;
 using SerilogSyntax.Parsing;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace SerilogSyntax.Utilities;
 
 /// <summary>
 /// Manages caching for the Serilog classifier to improve performance.
 /// </summary>
-internal class CacheManager
+internal class CacheManager(TemplateParser parser)
 {
     private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new();
     private readonly ConcurrentDictionary<SnapshotSpan, List<ClassificationSpan>> _classificationCache = new();
     private readonly object _cacheLock = new();
-    private readonly TemplateParser _parser;
-
-    public CacheManager(TemplateParser parser)
-    {
-        _parser = parser;
-    }
 
     /// <summary>
     /// Gets parsed template properties from cache or parses and caches them.
@@ -34,7 +27,7 @@ internal class CacheManager
         {
             try
             {
-                return [.. _parser.Parse(t)];
+                return [.. parser.Parse(t)];
             }
             catch
             {

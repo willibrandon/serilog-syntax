@@ -17,7 +17,7 @@ internal class MultiLineStringDetector
     private const int MaxLookforwardLines = 500;
 
     // Cache for raw string region detection results
-    private readonly ConcurrentDictionary<int, bool> _rawStringRegionCache = new ConcurrentDictionary<int, bool>();
+    private readonly ConcurrentDictionary<int, bool> _rawStringRegionCache = new();
 
     /// <summary>
     /// Clears cached information about raw string regions for the specified line.
