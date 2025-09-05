@@ -71,6 +71,7 @@
     <Compile Include="Tagging\SerilogBraceEscCommandHandler.cs" />
     <Compile Include="Tagging\SerilogBraceMatchProvider.cs" />
     <Compile Include="Utilities\LruCache.cs" />
+    <Compile Include="Utilities\MultiLineStringDetector.cs" />
     <Compile Include="Utilities\SerilogCallDetector.cs" />
   </ItemGroup>
   <ItemGroup>
