@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2025-09-04
+
+### Fixed
+- Template properties in concatenated strings are now correctly highlighted (#1)
+  - Properties in all string fragments of a concatenation chain are now detected
+  - Handles both line-by-line processing (how VS sends text) and full-span processing
+  - Supports various concatenation patterns: `" +`, `",`, and mixed regular/verbatim strings
+  - Example: In `"User {Id}" + "Name {Name}"`, both `{Id}` and `{Name}` are now highlighted
+- Improved escape sequence handling in string literals
+  - Correctly counts consecutive backslashes to determine if a character is escaped
+  - Handles complex patterns like `\\\"` (escaped backslash followed by quote)
+- Enhanced verbatim string (`@"..."`) detection in concatenated contexts
+
 ## [0.5.0] - 2025-09-03
 
 ### Added
@@ -218,6 +231,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.5.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.1
+[0.5.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.0
+[0.4.5]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.5
+[0.4.4]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.4
 [0.4.3]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.3
 [0.4.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.2
 [0.4.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.1
