@@ -9,12 +9,13 @@ using Xunit;
 
 namespace SerilogSyntax.Tests.Parsing;
 
-public class ProgramSyntaxTests
+public class ExampleSyntaxTests
 {
     private readonly IClassificationTypeRegistryService _classificationRegistry = MockClassificationTypeRegistry.Create();
     private readonly string _programPath;
+    private readonly string _exampleServicePath;
     
-    public ProgramSyntaxTests()
+    public ExampleSyntaxTests()
     {
         _programPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
             @"..\..\..\..\Example\Program.cs");
@@ -29,13 +30,28 @@ public class ProgramSyntaxTests
         {
             throw new FileNotFoundException($"Could not find Program.cs at {_programPath}");
         }
+        
+        // Also find ExampleService.cs
+        _exampleServicePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
+            @"..\..\..\..\Example\ExampleService.cs");
+        
+        if (!File.Exists(_exampleServicePath))
+        {
+            _exampleServicePath = Path.Combine(Directory.GetCurrentDirectory(), 
+                @"..\..\..\..\Example\ExampleService.cs");
+        }
+        
+        if (!File.Exists(_exampleServicePath))
+        {
+            throw new FileNotFoundException($"Could not find ExampleService.cs at {_exampleServicePath}");
+        }
     }
     
     [Fact]
     public void EntireProgramCs_ProcessedAsWhole_ShowsBug()
     {
-        // Read the ENTIRE Program.cs file
-        var fullProgramCode = File.ReadAllText(_programPath);
+        // Read the ENTIRE Program.cs file AND ExampleService.cs (since content was moved there)
+        var fullProgramCode = File.ReadAllText(_programPath) + "\n" + File.ReadAllText(_exampleServicePath);
         
         // Process it as VS would - the entire file at once
         var textBuffer = MockTextBuffer.Create(fullProgramCode);
@@ -68,7 +84,7 @@ public class ProgramSyntaxTests
     [Fact]
     public void ProcessProgramCs_LineByLine_ShowsDifference()
     {
-        var fullProgramCode = File.ReadAllText(_programPath);
+        var fullProgramCode = File.ReadAllText(_programPath) + "\n" + File.ReadAllText(_exampleServicePath);
         var textBuffer = MockTextBuffer.Create(fullProgramCode);
         var classifier = new SerilogClassifier(textBuffer, _classificationRegistry);
         var snapshot = textBuffer.CurrentSnapshot;
@@ -114,8 +130,8 @@ public class ProgramSyntaxTests
     {
         // This test verifies that Serilog.Expressions syntax in the actual Example\Program.cs is properly highlighted
         
-        // Read the actual Program.cs file
-        var programCode = File.ReadAllText(_programPath);
+        // Read the actual Program.cs file AND ExampleService.cs (since content was moved there)
+        var programCode = File.ReadAllText(_programPath) + "\n" + File.ReadAllText(_exampleServicePath);
         
         var textBuffer = MockTextBuffer.Create(programCode);
         var classifier = new SerilogClassifier(textBuffer, _classificationRegistry);
