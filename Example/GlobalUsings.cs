@@ -1,0 +1,10 @@
+﻿global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using Microsoft.Extensions.Logging;
+global using Serilog;
+global using Serilog.Templates;
+global using System;
+global using System.Collections.Generic;
+global using System.Diagnostics;
+global using System.IO;
+global using System.Threading.Tasks;
