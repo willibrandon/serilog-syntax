@@ -67,6 +67,8 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private const int MaxLookbackLines = 20;
     private const int MaxLookforwardLines = 50;
     private const int MaxVerbatimStringLookbackLines = 10;
+    // When detecting concatenated strings, look back up to 5 lines to find the Serilog call
+    private const int MaxConcatenationLookbackLines = 5;
 
     // Performance optimizations
     private readonly ConcurrentDictionary<string, List<TemplateProperty>> _templateCache = new();
@@ -311,10 +313,11 @@ internal class SerilogClassifier : IClassifier, IDisposable
                             text.Contains("{") && text.Contains("}"))
                         {
                             // Check if this looks like it's part of a concatenation
-                            // Either it ends with + (continuation) or it's indented (likely a continuation)
+                            // Look for explicit concatenation operators or ending comma
                             if (text.TrimEnd().EndsWith("+") || 
                                 text.TrimEnd().EndsWith("\" +") ||
-                                (text.StartsWith(" ") || text.StartsWith("\t"))) // Indented lines are likely continuations
+                                text.TrimEnd().EndsWith("\",") ||  // Last string in concatenation
+                                (trimmedText.StartsWith("\"") && (text.Contains(",") || text.Contains(")"))))  // String followed by args or closing paren
                             {
                                 looksLikeConcatenatedTemplate = true;
 #if DEBUG
@@ -326,7 +329,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                         if (looksLikeConcatenatedTemplate)
                         {
                             // Look at previous lines to see if there's a Serilog call that started the concatenation
-                            for (int i = currentLine.LineNumber - 1; i >= Math.Max(0, currentLine.LineNumber - 5); i--)
+                            for (int i = currentLine.LineNumber - 1; i >= Math.Max(0, currentLine.LineNumber - MaxConcatenationLookbackLines); i--)
                             {
                                 var checkLine = span.Snapshot.GetLineFromLineNumber(i);
                                 var checkText = checkLine.GetText();
@@ -521,7 +524,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                         char c = text[checkPos];
                         if (!inString)
                         {
-                            if (c == '"' && (checkPos == 0 || text[checkPos - 1] != '\\'))
+                            if (c == '"' && !IsEscaped(text, checkPos))
                                 inString = true;
                             else if (c == '(')
                                 parenDepth++;
@@ -534,7 +537,9 @@ internal class SerilogClassifier : IClassifier, IDisposable
                                 while (nextNonWhitespace < text.Length && char.IsWhiteSpace(text[nextNonWhitespace]))
                                     nextNonWhitespace++;
                                     
-                                if (nextNonWhitespace < text.Length && text[nextNonWhitespace] == '"')
+                                if (nextNonWhitespace < text.Length && 
+                                    (text[nextNonWhitespace] == '"' || 
+                                     (text[nextNonWhitespace] == '@' && nextNonWhitespace + 1 < text.Length && text[nextNonWhitespace + 1] == '"')))
                                 {
                                     hasConcatenation = true;
                                     break;
@@ -543,7 +548,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                         }
                         else
                         {
-                            if (c == '"' && text[checkPos - 1] != '\\')
+                            if (c == '"' && !IsEscaped(text, checkPos))
                                 inString = false;
                         }
 
@@ -554,6 +559,13 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     {
                         // Find ALL concatenated string literals
                         allStringLiterals = FindAllConcatenatedStrings(text, searchStart, span.Start);
+#if DEBUG
+                        DiagnosticLogger.Log($"Found {allStringLiterals.Count} strings in concatenation");
+                        foreach (var str in allStringLiterals)
+                        {
+                            DiagnosticLogger.Log($"  String: '{str.text}' (verbatim: {str.isVerbatim})");
+                        }
+#endif
                     }
                     else
                     {
@@ -842,10 +854,11 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 continue;
             }
             
-            // Try to parse a string literal
+            // Try to parse a string literal (handles regular, verbatim @", and raw """ strings)
             if (TryParseStringLiteral(text, currentPos, out var parsed))
             {
-                bool isVerbatim = currentPos > 0 && text[currentPos - 1] == '@';
+                // Determine string type
+                bool isVerbatim = currentPos < text.Length && text[currentPos] == '@';
                 int quoteCount = 1;
                 
                 // Check for raw string literal
@@ -1621,6 +1634,29 @@ internal class SerilogClassifier : IClassifier, IDisposable
     {
         var line = snapshot.GetLineFromPosition(position);
         return line.GetText();
+    }
+    
+    /// <summary>
+    /// Checks if a character at the given position is escaped.
+    /// Handles cases like \\" (escaped quote) and \\\\" (escaped backslash followed by quote).
+    /// </summary>
+    private bool IsEscaped(string text, int position)
+    {
+        if (position <= 0) return false;
+        
+        // Count consecutive backslashes before the position
+        int backslashCount = 0;
+        int checkPos = position - 1;
+        
+        while (checkPos >= 0 && text[checkPos] == '\\')
+        {
+            backslashCount++;
+            checkPos--;
+        }
+        
+        // If odd number of backslashes, the character is escaped
+        // If even number (including 0), it's not escaped
+        return backslashCount % 2 == 1;
     }
 
     /// <summary>
