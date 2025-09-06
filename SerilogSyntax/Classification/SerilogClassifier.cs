@@ -544,16 +544,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // These won't be matched by the main regex but need to be processed
             // BUT skip this if we already processed via the fallback (matches.Count == 0 && isSerilogCall)
             // ALSO skip this if we already have regex matches for the chained method calls (our new patterns)
-            bool hasChainedMethodMatches = false;
-            foreach (Match existingMatch in matches)
-            {
-                // If we have matches that start with "." (our new chained patterns), skip multi-line processing
-                if (existingMatch.Value.StartsWith("."))
-                {
-                    hasChainedMethodMatches = true;
-                    break;
-                }
-            }
+            bool hasChainedMethodMatches = matches.Cast<Match>().Any(m => m.Value.StartsWith("."));
             
             if (!(matches.Count == 0 && isSerilogCall) && !hasChainedMethodMatches && text.Contains("ForContext")
                 && (text.Contains(".Information") || text.Contains(".Debug")

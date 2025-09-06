@@ -10,12 +10,17 @@ namespace SerilogSyntax.Utilities;
 /// </summary>
 internal static class SerilogCallDetector
 {
-    // Quick check strings for early rejection
+    // Quick check strings for early rejection - logger variable names and keywords
     private static readonly string[] QuickCheckPatterns = 
     [
         "Log", "log", "_log", "logger", "Logger", "outputTemplate",
         "Filter", "ByExcluding", "ByIncludingOnly", 
-        "WithComputed", "ExpressionTemplate", "Conditional", "When",
+        "WithComputed", "ExpressionTemplate", "Conditional", "When"
+    ];
+    
+    // Dotted method names for chained calls (e.g., .Information(), .Debug())
+    private static readonly string[] DottedMethodPatterns =
+    [
         ".Information", ".Debug", ".Warning", ".Error", ".Fatal", ".Verbose"
     ];
     
@@ -111,14 +116,29 @@ internal static class SerilogCallDetector
         if (string.IsNullOrWhiteSpace(line))
             return false;
             
-        // Quick check: does the line contain any potential logger references?
+        // Quick check: does the line contain any potential logger references or dotted methods?
         bool hasPotentialLogger = false;
+        
+        // Check for logger variable names and keywords
         foreach (var pattern in QuickCheckPatterns)
         {
             if (line.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 hasPotentialLogger = true;
                 break;
+            }
+        }
+        
+        // If no standard patterns found, check for dotted method patterns
+        if (!hasPotentialLogger)
+        {
+            foreach (var pattern in DottedMethodPatterns)
+            {
+                if (line.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    hasPotentialLogger = true;
+                    break;
+                }
             }
         }
         
