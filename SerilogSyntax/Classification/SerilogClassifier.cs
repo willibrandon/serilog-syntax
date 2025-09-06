@@ -270,6 +270,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
 
                     // Look backwards to see if we're inside an unclosed verbatim or raw string
                     bool insideString = false;
+                    bool isOutputTemplate = false;
 
                     if (IsInsideVerbatimString(span))
                     {
@@ -323,6 +324,19 @@ internal class SerilogClassifier : IClassifier, IDisposable
                                     DiagnosticLogger.Log($"Found Serilog call with concatenation on line {i}: '{checkText.Trim()}'");
 #endif
                                     insideString = true;
+                                    break;
+                                }
+                                
+                                // Also check if this is a multi-line outputTemplate pattern
+                                // Where outputTemplate: is on the previous line and template string is on current line
+                                if (checkText.Contains("outputTemplate:") && i == currentLine.LineNumber - 1)
+                                {
+#if DEBUG
+                                    DiagnosticLogger.Log($"Found outputTemplate: on previous line {i}, treating as Serilog template");
+#endif
+                                    insideString = true;
+                                    // Mark this specifically as an outputTemplate pattern so we skip Roslyn verification
+                                    isOutputTemplate = true;
                                     break;
                                 }
                             }
@@ -387,8 +401,9 @@ internal class SerilogClassifier : IClassifier, IDisposable
                         // Find the actual string literal position when we're inside a multi-line string
                         int positionToCheck = FindStringLiteralPosition(span.Snapshot, span.Start, currentLine);
 
-                        bool isActuallySerilogTemplate = SyntaxTreeAnalyzer.IsPositionInsideSerilogTemplate(
-                            span.Snapshot, positionToCheck);
+                        // If we already determined this is an outputTemplate, skip Roslyn verification
+                        bool isActuallySerilogTemplate = isOutputTemplate || 
+                            SyntaxTreeAnalyzer.IsPositionInsideSerilogTemplate(span.Snapshot, positionToCheck);
 
                         if (isActuallySerilogTemplate)
                         {
@@ -570,6 +585,125 @@ internal class SerilogClassifier : IClassifier, IDisposable
                                     
 #if DEBUG
                                     DiagnosticLogger.Log($"[SerilogClassifier] Adding {properties.Count} properties from multi-line ForContext");
+#endif
+                                    foreach (var property in properties)
+                                    {
+                                        _spanBuilder.AddPropertyClassifications(
+                                            classifications,
+                                            span.Snapshot,
+                                            templateStartInSnapshot,
+                                            property);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Special handling for outputTemplate patterns that span multiple lines
+            // Where outputTemplate: is on one line and the template string is on the next
+            // BUT only if we haven't already processed these templates through normal matching
+            // Also check if we're processing just a string literal that might be part of a multi-line outputTemplate
+            if (text.Contains("outputTemplate:") || (text.Trim().StartsWith("\"") && span.Start.Position > 0))
+            {
+#if DEBUG
+                DiagnosticLogger.Log($"[SerilogClassifier] Checking for multi-line outputTemplate patterns");
+#endif
+                
+                // If we're processing a single line that starts with a string literal,
+                // check if the previous line contains outputTemplate:
+                var textToSearch = text;
+                if (!text.Contains("outputTemplate:") && text.Trim().StartsWith("\""))
+                {
+                    // Look at the previous line
+                    var currentLine = span.Snapshot.GetLineFromPosition(span.Start);
+                    if (currentLine.LineNumber > 0)
+                    {
+                        var previousLine = span.Snapshot.GetLineFromLineNumber(currentLine.LineNumber - 1);
+                        var previousText = previousLine.GetText();
+                        if (previousText.Contains("outputTemplate:"))
+                        {
+                            // Combine previous line with current for pattern matching
+                            textToSearch = previousText + "\r\n" + text;
+#if DEBUG
+                            DiagnosticLogger.Log($"[SerilogClassifier] Found outputTemplate: on previous line, combining for search");
+#endif
+                        }
+                    }
+                }
+                
+                var outputTemplateMatches = SerilogCallDetector.FindMultiLineOutputTemplateCalls(textToSearch);
+                
+#if DEBUG
+                DiagnosticLogger.Log($"[SerilogClassifier] Found {outputTemplateMatches.Count} multi-line outputTemplate patterns");
+#endif
+                
+                foreach (Match otMatch in outputTemplateMatches)
+                {
+                    if (otMatch.Groups.Count > 1)
+                    {
+                        var templateText = otMatch.Groups[1].Value;
+                        // Find the exact position of this template in the text
+                        // If we combined with previous line, adjust the position
+                        var templateStartInText = otMatch.Index + otMatch.Value.IndexOf('"');
+                        
+                        // If we added previous line text, we need to adjust position back to current span
+                        if (textToSearch != text && !text.Contains("outputTemplate:"))
+                        {
+                            // The match position includes the previous line, so subtract it
+                            var previousLineLength = textToSearch.Length - text.Length;
+                            templateStartInText -= previousLineLength;
+                            
+                            // If the template position is negative, it means the template is on current line
+                            if (templateStartInText < 0)
+                            {
+                                // The template starts at the beginning of current line
+                                templateStartInText = text.IndexOf('"');
+                            }
+                        }
+                        
+                        // Check if this template was already processed by the normal regex matching
+                        // This happens when processing full spans that include both lines
+                        bool alreadyProcessed = false;
+                        
+                        // Check if there's already a match that would have processed this template
+                        foreach (Match existingMatch in matches)
+                        {
+                            // If there's an outputTemplate match that's close to this position,
+                            // it means the template was already processed
+                            if (existingMatch.Value.Contains("outputTemplate") && 
+                                Math.Abs(existingMatch.Index - otMatch.Index) < 100)
+                            {
+                                alreadyProcessed = true;
+#if DEBUG
+                                DiagnosticLogger.Log($"[SerilogClassifier] Skipping multi-line outputTemplate at {templateStartInText} - " +
+                                    $"already processed by normal matching");
+#endif
+                                break;
+                            }
+                        }
+                        
+                        // Only process if not already handled and not in our processed positions set
+                        if (!alreadyProcessed && !processedPositions.Contains(templateStartInText))
+                        {
+                            processedPositions.Add(templateStartInText);
+                            
+#if DEBUG
+                            DiagnosticLogger.Log($"[SerilogClassifier] Processing multi-line outputTemplate at position " +
+                                $"{templateStartInText}: {templateText}'");
+#endif
+                            if (templateText.Contains("{") && templateText.Contains("}"))
+                            {
+                                var properties = _parser.Parse(templateText).ToList();
+                                
+                                if (properties.Count > 0)
+                                {
+                                    var templateStartInSnapshot = span.Start + templateStartInText + 1; // +1 to skip opening quote
+                                    
+#if DEBUG
+                                    DiagnosticLogger.Log($"[SerilogClassifier] Adding {properties.Count} properties from multi-line " +
+                                        $"outputTemplate");
 #endif
                                     foreach (var property in properties)
                                     {

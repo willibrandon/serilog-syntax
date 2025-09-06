@@ -58,6 +58,20 @@ internal static class SerilogCallDetector
         ",
         RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
 
+    /// <summary>
+    /// Regex pattern that matches multi-line outputTemplate patterns where outputTemplate:
+    /// is on one line and the template string is on the next line.
+    /// Example: .WriteTo.Console(outputTemplate:
+    ///              "[{Timestamp:HH:mm:ss}] {Message}")
+    /// </summary>
+    private static readonly Regex MultiLineOutputTemplateRegex = new(
+        @"
+        outputTemplate\s*:\s*       # outputTemplate: with optional whitespace
+        \r?\n\s*                    # newline and optional whitespace/indentation
+        ""([^""]+)""                # string literal (template)
+        ",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
+
     // Cache for recent match results
     private static readonly LruCache<string, bool> CallCache = new(100);
 
@@ -184,6 +198,17 @@ internal static class SerilogCallDetector
     public static MatchCollection FindMultiLineForContextCalls(string text)
     {
         return MultiLineForContextRegex.Matches(text);
+    }
+    
+    /// <summary>
+    /// Finds all multi-line outputTemplate patterns in the text where outputTemplate:
+    /// is on one line and the template string is on the next line.
+    /// </summary>
+    /// <param name="text">The text to search</param>
+    /// <returns>Matches containing the multi-line outputTemplate patterns</returns>
+    public static MatchCollection FindMultiLineOutputTemplateCalls(string text)
+    {
+        return MultiLineOutputTemplateRegex.Matches(text);
     }
     
     /// <summary>

@@ -185,5 +185,39 @@ log.ForContext<Program>()
                 c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
             Assert.Equal(2, properties.Count); // One Items for each {@Items}
         }
+
+        [Fact]
+        public void GetClassificationSpans_OutputTemplateWithNewLine_HighlightsProperties()
+        {
+            // Arrange - exact scenario where outputTemplate: is on one line
+            // and the template string is on the next line
+            var code = @"
+using var log = new LoggerConfiguration()
+    .Enrich.WithProperty(""Application"", ""Example"")
+    .WriteTo.Console(outputTemplate:
+        ""[{Timestamp:HH:mm:ss} {Level:u3} ({SourceContext})] {Message:lj} (first item is {FirstItem}){NewLine}{Exception}"")
+    .CreateLogger();";
+
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert - should find classifications for all template properties
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find property names for Timestamp, Level, SourceContext, Message, FirstItem, NewLine, Exception
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.True(properties.Count >= 7, $"Expected at least 7 properties but found {properties.Count}");
+            
+            // Should find format specifiers for HH:mm:ss, u3, lj
+            var formatSpecifiers = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.FormatSpecifier).ToList();
+            Assert.True(formatSpecifiers.Count >= 3, $"Expected at least 3 format specifiers but found {formatSpecifiers.Count}");
+        }
     }
 }
