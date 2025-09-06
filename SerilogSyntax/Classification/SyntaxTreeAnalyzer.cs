@@ -544,7 +544,7 @@ internal static class SyntaxTreeAnalyzer
             }
         }
 
-        // Contextual loggers: Log.ForContext<T>().Information, etc.
+        // Contextual loggers: Log.ForContext<T>().Information, log.ForContext<T>().Information, etc.
         if (target is InvocationExpressionSyntax nestedInvocation)
         {
             var contextualMemberAccess = nestedInvocation.Expression as MemberAccessExpressionSyntax;
@@ -552,9 +552,10 @@ internal static class SyntaxTreeAnalyzer
             {
                 var nestedTargetName = nestedIdentifier.Identifier.ValueText;
                 LogDiagnostic($"[IsSerilogMethodInvocation] Contextual target: {nestedTargetName}");
-                if (nestedTargetName == "Log")
+                // Check for both uppercase "Log" and any variable containing "log" (case-insensitive)
+                if (nestedTargetName == "Log" || nestedTargetName.ToLowerInvariant().Contains("log"))
                 {
-                    LogDiagnostic($"[IsSerilogMethodInvocation] Matched contextual Log call");
+                    LogDiagnostic($"[IsSerilogMethodInvocation] Matched contextual logger call");
                     return true;
                 }
             }

@@ -16,6 +16,8 @@ public class ExampleService(ILogger<ExampleService> logger)
     /// <returns>A task that completes when all examples have been executed.</returns>
     public async Task RunExamplesAsync()
     {
+        SelfLog.Enable(Console.Error);
+
         await ShowcaseExample();
         await BasicLoggingExamples();
         await DestructuringExamples();
@@ -25,6 +27,7 @@ public class ExampleService(ILogger<ExampleService> logger)
         await SerilogExpressionsExamples();
         await ErrorHandlingExamples();
         await PerformanceLoggingExamples();
+        await TextFormattingExamples();
     }
 
     /// <summary>
@@ -491,6 +494,28 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
             await Task.Delay(100);
             logger.LogInformation("Export completed successfully");
         }
+    }
+
+    private async Task TextFormattingExamples()
+    {
+        using var log = new LoggerConfiguration()
+            .Enrich.WithProperty("Application", "Sample")
+            .WriteTo.Console(new ExpressionTemplate(
+                "[{@t:HH:mm:ss} {@l:u3}" +
+                "{#if SourceContext is not null} ({Substring(SourceContext, LastIndexOf(SourceContext, '.') + 1)}){#end}] " +
+                "{@m} (first item is {coalesce(Items[0], '<empty>')}) {rest()}\n{@x}",
+                theme: TemplateTheme.Code))
+            .CreateLogger();
+
+        log.Information("Running {Example}", nameof(TextFormattingExamples));
+
+        log.ForContext<Program>()
+            .Information("Cart contains {@Items}", ["Tea", "Coffee"]);
+
+        log.ForContext<Program>()
+            .Information("Cart contains {@Items}", ["Apricots"]);
+
+        await Task.Delay(100);
     }
 
     /// <summary>

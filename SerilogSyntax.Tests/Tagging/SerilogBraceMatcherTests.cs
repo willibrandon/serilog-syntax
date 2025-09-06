@@ -598,8 +598,8 @@ public class SerilogBraceMatcherTests
         
         // Add a very long property name that exceeds MaxPropertyLength (200 chars)
         var longPropertyName = new string('A', 250);
-        lines = lines.Concat(new[] { longPropertyName }).ToArray();
-        lines = lines.Concat(new[] { "} processed\")" }).ToArray();
+        lines = [.. lines, longPropertyName];
+        lines = [.. lines, "} processed\")"];
 
         var text = string.Join("\n", lines);
         var buffer = new MockTextBuffer(text);

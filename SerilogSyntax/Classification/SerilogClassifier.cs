@@ -220,7 +220,44 @@ internal class SerilogClassifier : IClassifier, IDisposable
 #endif
 
             // Early exit if no Serilog calls detected - avoids expensive regex on irrelevant text
-            if (string.IsNullOrWhiteSpace(text) || !SerilogCallDetector.IsSerilogCall(text))
+            bool isSerilogCall = !string.IsNullOrWhiteSpace(text) && SerilogCallDetector.IsSerilogCall(text);
+            
+#if DEBUG
+            if (text.Contains("ForContext") && text.Contains(".Information"))
+            {
+                DiagnosticLogger.Log($"[SerilogClassifier] ForContext pattern detected, isSerilogCall={isSerilogCall}, " +
+                    $"span length={span.Length}");
+                DiagnosticLogger.Log($"[SerilogClassifier] Text snippet: '{text.Substring(0, Math.Min(200, text.Length))
+                    .Replace("\r", "\\r").Replace("\n", "\\n")}'");
+            }
+#endif
+            
+            // If the regex-based detector fails, use SyntaxTreeAnalyzer as a fallback for complex cases
+            // like multi-line ForContext chains
+            if (!isSerilogCall && !string.IsNullOrWhiteSpace(text) && (text.Contains("ForContext")
+                || text.Contains(".Information")
+                || text.Contains(".Debug")
+                || text.Contains(".Warning")
+                || text.Contains(".Error")))
+            {
+#if DEBUG
+                DiagnosticLogger.Log($"[SerilogClassifier] Using SyntaxTreeAnalyzer fallback");
+#endif
+                // Check if any string literal in the span is inside a Serilog template
+                // Look for the first quote to find a string literal position
+                int stringLiteralPos = -1;
+                int quoteIndex = text.IndexOf('"');
+                if (quoteIndex >= 0)
+                {
+                    stringLiteralPos = span.Start + quoteIndex + 1; // Position just inside the string literal
+                    isSerilogCall = SyntaxTreeAnalyzer.IsPositionInsideSerilogTemplate(span.Snapshot, stringLiteralPos);
+#if DEBUG
+                    DiagnosticLogger.Log($"[SerilogClassifier] SyntaxTreeAnalyzer result: {isSerilogCall}");
+#endif
+                }
+            }
+            
+            if (!isSerilogCall)
             {
                 // Check if we might be inside a multi-line string or an ExpressionTemplate
                 if (text.Contains("{") || text.Contains("}"))
@@ -423,6 +460,130 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 DiagnosticLogger.Log($"  Match at {m.Index}: '{m.Value}'");
             }
 #endif
+
+            // Track positions we've already processed to avoid duplicates
+            var processedPositions = new HashSet<int>();
+
+            // If we know it's a Serilog call (from SyntaxTreeAnalyzer) but regex found no matches,
+            // find and process all string literals in the span
+            if (matches.Count == 0 && isSerilogCall)
+            {
+#if DEBUG
+                DiagnosticLogger.Log($"[SerilogClassifier] No regex matches but isSerilogCall=true, looking for string literals");
+#endif
+                // Find all string literals in the text
+                var stringLiteralPattern = new Regex(@"""[^""]*""");
+                var stringMatches = stringLiteralPattern.Matches(text);
+                
+#if DEBUG
+                DiagnosticLogger.Log($"[SerilogClassifier] Found {stringMatches.Count} string literals");
+#endif
+                
+                foreach (Match stringMatch in stringMatches)
+                {
+                    // Skip if we've already processed this position in multi-line ForContext handling
+                    if (processedPositions.Contains(stringMatch.Index))
+                    {
+#if DEBUG
+                        DiagnosticLogger.Log($"[SerilogClassifier] Skipping already processed position {stringMatch.Index}");
+#endif
+                        continue;
+                    }
+                    
+                    // Check if this string literal contains template syntax
+                    var stringContent = stringMatch.Value;
+                    if (stringContent.Contains("{") && stringContent.Contains("}"))
+                    {
+                        // Parse this as a template
+                        var templateText = stringContent.Trim('"');
+#if DEBUG
+                        DiagnosticLogger.Log($"[SerilogClassifier] Processing template: '{templateText}'");
+#endif
+                        var properties = _parser.Parse(templateText).ToList();
+                        
+                        if (properties.Count > 0)
+                        {
+#if DEBUG
+                            DiagnosticLogger.Log($"[SerilogClassifier] Found {properties.Count} properties in template");
+#endif
+                            // Add classifications for the properties
+                            foreach (var property in properties)
+                            {
+                                _spanBuilder.AddPropertyClassifications(
+                                    classifications,
+                                    span.Snapshot,
+                                    span.Start + stringMatch.Index + 1, // +1 to skip opening quote
+                                    property);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Special handling for ForContext patterns that span multiple lines
+            // These won't be matched by the main regex but need to be processed
+            // BUT skip this if we already processed via the fallback (matches.Count == 0 && isSerilogCall)
+            if (!(matches.Count == 0 && isSerilogCall) && text.Contains("ForContext") && (text.Contains(".Information")
+                || text.Contains(".Debug")
+                || text.Contains(".Warning")
+                || text.Contains(".Error")))
+            {
+#if DEBUG
+                DiagnosticLogger.Log($"[SerilogClassifier] Checking for multi-line ForContext patterns");
+#endif
+                // Look for patterns like:
+                // someVar.ForContext<T>()
+                //     .Information("template", ...)
+                var multiLineMatches = SerilogCallDetector.FindMultiLineForContextCalls(text);
+                
+#if DEBUG
+                DiagnosticLogger.Log($"[SerilogClassifier] Found {multiLineMatches.Count} multi-line ForContext patterns");
+#endif
+                
+                foreach (Match mlMatch in multiLineMatches)
+                {
+                    if (mlMatch.Groups.Count > 2)
+                    {
+                        var templateText = mlMatch.Groups[2].Value;
+                        // Find the position of this template in the text
+                        var templatePattern = "\"" + Regex.Escape(templateText) + "\"";
+                        var templateMatch = Regex.Match(text.Substring(mlMatch.Index), templatePattern);
+                        if (templateMatch.Success)
+                        {
+                            var templateStartInText = mlMatch.Index + templateMatch.Index;
+                            
+                            // Track this position so we don't process it again
+                            processedPositions.Add(templateStartInText);
+                            
+#if DEBUG
+                            DiagnosticLogger.Log($"[SerilogClassifier] Processing multi-line template at position {templateStartInText}: " +
+                                $"'{templateText}'");
+#endif
+                            if (templateText.Contains("{") && templateText.Contains("}"))
+                            {
+                                var properties = _parser.Parse(templateText).ToList();
+                                
+                                if (properties.Count > 0)
+                                {
+                                    var templateStartInSnapshot = span.Start + templateStartInText + 1; // +1 to skip opening quote
+                                    
+#if DEBUG
+                                    DiagnosticLogger.Log($"[SerilogClassifier] Adding {properties.Count} properties from multi-line ForContext");
+#endif
+                                    foreach (var property in properties)
+                                    {
+                                        _spanBuilder.AddPropertyClassifications(
+                                            classifications,
+                                            span.Snapshot,
+                                            templateStartInSnapshot,
+                                            property);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             var currentLine2 = span.Snapshot.GetLineFromPosition(span.Start);
 
