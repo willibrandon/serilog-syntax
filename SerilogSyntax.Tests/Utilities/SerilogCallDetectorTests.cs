@@ -86,7 +86,9 @@ public class SerilogCallDetectorTests
             ("Logger.Write(LogEventLevel.Debug, \"Test\")", true),
             ("using (logger.BeginScope(\"Operation\"))", true),
             ("Console.WriteLine(\"Test\")", false),
-            ("Debug.Log(\"Test\")", false)
+            ("Debug.Log(\"Test\")", false),
+            ("program.Information(\"Host listening at {ListenUri}\", \"https://hello-world.local\")", true),
+            ("var program = log.ForContext<Program>();", false)
         };
         
         foreach (var (text, shouldFind) in testCases)
@@ -255,5 +257,31 @@ public class SerilogCallDetectorTests
         SerilogCallDetector.ClearCache();
         var resultAfterClear = SerilogCallDetector.IsSerilogCallCached(complexText);
         Assert.True(resultAfterClear);
+    }
+    
+    [Fact]
+    public void FindSerilogCall_FindsChainedForContextCalls()
+    {
+        // Test the specific case from the screenshot where program.Information should be detected
+        var testCases = new[]
+        {
+            ("var program = log.ForContext<Program>();", false), // Declaration, not a call
+            ("program.Information(\"Host listening at {ListenUri}\", \"https://hello-world.local\");", true), // Should be detected
+            ("program\n    .ForContext(\"Scope\", consoleLoggerScopes)\n    .Information(\"HTTP {Method} {Path} responded {StatusCode} in {Elapsed:0.000} ms\", \"GET\", \"/api/hello\", 200, 1.23);", true) // Multi-line chained call
+        };
+        
+        foreach (var (text, shouldFind) in testCases)
+        {
+            var match = SerilogCallDetector.FindSerilogCall(text);
+            if (shouldFind)
+            {
+                Assert.NotNull(match);
+                Assert.True(match.Success, $"Should find Serilog call in: {text}");
+            }
+            else
+            {
+                Assert.Null(match);
+            }
+        }
     }
 }

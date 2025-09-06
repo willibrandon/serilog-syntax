@@ -10,12 +10,18 @@ namespace SerilogSyntax.Utilities;
 /// </summary>
 internal static class SerilogCallDetector
 {
-    // Quick check strings for early rejection
+    // Quick check strings for early rejection - logger variable names and keywords
     private static readonly string[] QuickCheckPatterns = 
     [
         "Log", "log", "_log", "logger", "Logger", "outputTemplate",
         "Filter", "ByExcluding", "ByIncludingOnly", 
         "WithComputed", "ExpressionTemplate", "Conditional", "When"
+    ];
+    
+    // Dotted method names for chained calls (e.g., .Information(), .Debug())
+    private static readonly string[] DottedMethodPatterns =
+    [
+        ".Information", ".Debug", ".Warning", ".Error", ".Fatal", ".Verbose"
     ];
     
     private static readonly HashSet<string> SerilogMethods = new(StringComparer.OrdinalIgnoreCase)
@@ -31,10 +37,10 @@ internal static class SerilogCallDetector
     /// <summary>
     /// Regex pattern that matches Serilog method calls and configuration templates.
     /// Supports both direct Serilog calls and Microsoft.Extensions.Logging integration.
-    /// Also supports Serilog.Expressions API calls.
+    /// Also supports Serilog.Expressions API calls and variables assigned from ForContext calls.
     /// </summary>
     private static readonly Regex SerilogCallRegex = new(
-        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:outputTemplate\s*:\s*)|(?:\.?(?:Filter\.)?(?:ByExcluding|ByIncludingOnly)\s*\()|(?:\.?(?:Enrich\.)?(?:WithComputed|When)\s*\()|(?:\.?(?:WriteTo\.)?Conditional\s*\()|(?:new\s+ExpressionTemplate\s*\()",
+        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:\b\w+\.(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\()|(?:\.(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\()|(?:outputTemplate\s*:\s*)|(?:\.?(?:Filter\.)?(?:ByExcluding|ByIncludingOnly)\s*\()|(?:\.?(?:Enrich\.)?(?:WithComputed|When)\s*\()|(?:\.?(?:WriteTo\.)?Conditional\s*\()|(?:new\s+ExpressionTemplate\s*\()",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -110,14 +116,29 @@ internal static class SerilogCallDetector
         if (string.IsNullOrWhiteSpace(line))
             return false;
             
-        // Quick check: does the line contain any potential logger references?
+        // Quick check: does the line contain any potential logger references or dotted methods?
         bool hasPotentialLogger = false;
+        
+        // Check for logger variable names and keywords
         foreach (var pattern in QuickCheckPatterns)
         {
             if (line.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 hasPotentialLogger = true;
                 break;
+            }
+        }
+        
+        // If no standard patterns found, check for dotted method patterns
+        if (!hasPotentialLogger)
+        {
+            foreach (var pattern in DottedMethodPatterns)
+            {
+                if (line.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    hasPotentialLogger = true;
+                    break;
+                }
             }
         }
         
