@@ -15,7 +15,8 @@ internal static class SerilogCallDetector
     [
         "Log", "log", "_log", "logger", "Logger", "outputTemplate",
         "Filter", "ByExcluding", "ByIncludingOnly", 
-        "WithComputed", "ExpressionTemplate", "Conditional", "When"
+        "WithComputed", "ExpressionTemplate", "Conditional", "When",
+        ".Information", ".Debug", ".Warning", ".Error", ".Fatal", ".Verbose"
     ];
     
     private static readonly HashSet<string> SerilogMethods = new(StringComparer.OrdinalIgnoreCase)
@@ -31,10 +32,10 @@ internal static class SerilogCallDetector
     /// <summary>
     /// Regex pattern that matches Serilog method calls and configuration templates.
     /// Supports both direct Serilog calls and Microsoft.Extensions.Logging integration.
-    /// Also supports Serilog.Expressions API calls.
+    /// Also supports Serilog.Expressions API calls and variables assigned from ForContext calls.
     /// </summary>
     private static readonly Regex SerilogCallRegex = new(
-        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:outputTemplate\s*:\s*)|(?:\.?(?:Filter\.)?(?:ByExcluding|ByIncludingOnly)\s*\()|(?:\.?(?:Enrich\.)?(?:WithComputed|When)\s*\()|(?:\.?(?:WriteTo\.)?Conditional\s*\()|(?:new\s+ExpressionTemplate\s*\()",
+        @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:\b\w+\.(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\()|(?:\.(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)\s*\()|(?:outputTemplate\s*:\s*)|(?:\.?(?:Filter\.)?(?:ByExcluding|ByIncludingOnly)\s*\()|(?:\.?(?:Enrich\.)?(?:WithComputed|When)\s*\()|(?:\.?(?:WriteTo\.)?Conditional\s*\()|(?:new\s+ExpressionTemplate\s*\()",
         RegexOptions.Compiled);
 
     /// <summary>

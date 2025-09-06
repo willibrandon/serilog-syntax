@@ -481,6 +481,9 @@ internal class SerilogClassifier : IClassifier, IDisposable
 
             // Track positions we've already processed to avoid duplicates
             var processedPositions = new HashSet<int>();
+            
+            // Also track match positions to avoid overlapping matches from different regex patterns
+            var processedMatchRanges = new List<(int start, int end)>();
 
             // If we know it's a Serilog call (from SyntaxTreeAnalyzer) but regex found no matches,
             // find and process all string literals in the span
@@ -540,7 +543,19 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // Special handling for ForContext patterns that span multiple lines
             // These won't be matched by the main regex but need to be processed
             // BUT skip this if we already processed via the fallback (matches.Count == 0 && isSerilogCall)
-            if (!(matches.Count == 0 && isSerilogCall) && text.Contains("ForContext")
+            // ALSO skip this if we already have regex matches for the chained method calls (our new patterns)
+            bool hasChainedMethodMatches = false;
+            foreach (Match existingMatch in matches)
+            {
+                // If we have matches that start with "." (our new chained patterns), skip multi-line processing
+                if (existingMatch.Value.StartsWith("."))
+                {
+                    hasChainedMethodMatches = true;
+                    break;
+                }
+            }
+            
+            if (!(matches.Count == 0 && isSerilogCall) && !hasChainedMethodMatches && text.Contains("ForContext")
                 && (text.Contains(".Information") || text.Contains(".Debug")
                     || text.Contains(".Warning") || text.Contains(".Error")))
             {
@@ -733,6 +748,28 @@ internal class SerilogClassifier : IClassifier, IDisposable
 
             foreach (Match match in matches)
             {
+                // Check if this match overlaps with any previously processed match
+                int matchStart = match.Index;
+                int matchEnd = match.Index + match.Length;
+                
+                bool isOverlapping = false;
+                foreach (var (processedStart, processedEnd) in processedMatchRanges)
+                {
+                    // Check for any overlap: either this match starts inside a processed range
+                    // or a processed range starts inside this match
+                    if ((matchStart >= processedStart && matchStart < processedEnd) ||
+                        (processedStart >= matchStart && processedStart < matchEnd))
+                    {
+                        isOverlapping = true;
+                        break;
+                    }
+                }
+                
+                if (isOverlapping)
+                {
+                    continue; // Skip overlapping matches to avoid duplicate processing
+                }
+                
                 // Use SyntaxTreeAnalyzer to determine if this match is in a real Serilog call
                 int matchPosition = span.Start + match.Index;
                 bool isActuallySerilogCall = SyntaxTreeAnalyzer.IsPositionInsideSerilogTemplate(
@@ -743,6 +780,9 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     // Skipping match - not a real Serilog call
                     continue;
                 }
+                
+                // Add this match to processed ranges
+                processedMatchRanges.Add((matchStart, matchEnd));
 
                 // Special handling for WithComputed and ExpressionTemplate - they may have multiple string arguments
                 bool isWithComputed = match.Value.Contains("WithComputed");

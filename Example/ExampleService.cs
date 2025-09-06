@@ -1,4 +1,6 @@
-﻿namespace Example;
+﻿using System.Collections.Generic;
+
+namespace Example;
 
 /// <summary>
 /// Service that demonstrates various Serilog logging features and syntax highlighting capabilities.
@@ -10,6 +12,8 @@
 /// </remarks>
 public class ExampleService(ILogger<ExampleService> logger)
 {
+    private static readonly string[] consoleLoggerScopes = ["Main", "ConsoleLoggerEmulationExample()"];
+
     /// <summary>
     /// Runs all example logging scenarios to demonstrate the full range of Serilog features.
     /// </summary>
@@ -27,8 +31,9 @@ public class ExampleService(ILogger<ExampleService> logger)
         await SerilogExpressionsExamples();
         await ErrorHandlingExamples();
         await PerformanceLoggingExamples();
-        await TextFormattingExamples();
-        await PipelineComponentExamples();
+        await TextFormattingExample();
+        await PipelineComponentExample();
+        await ConsoleLoggerEmulationExample();
     }
 
     /// <summary>
@@ -497,8 +502,10 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         }
     }
 
-    private async Task TextFormattingExamples()
+    private async Task TextFormattingExample()
     {
+        logger.LogInformation("=== Text Formatting Logging Example ===");
+
         using var log = new LoggerConfiguration()
             .Enrich.WithProperty("Application", "Sample")
             .WriteTo.Console(new ExpressionTemplate(
@@ -508,7 +515,7 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
                 theme: TemplateTheme.Code))
             .CreateLogger();
 
-        log.Information("Running {Example}", nameof(TextFormattingExamples));
+        log.Information("Running {Example}", nameof(TextFormattingExample));
 
         log.ForContext<Program>()
             .Information("Cart contains {@Items}", ["Tea", "Coffee"]);
@@ -519,8 +526,10 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         await Task.Delay(100);
     }
 
-    private async Task PipelineComponentExamples()
+    private async Task PipelineComponentExample()
     {
+        logger.LogInformation("=== Pipeline Components Logging Example ===");
+
         using var log = new LoggerConfiguration()
             .Enrich.WithProperty("Application", "Example")
             .Enrich.WithComputed("FirstItem", "coalesce(Items[0], '<empty>')")
@@ -530,13 +539,50 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
                 "[{Timestamp:HH:mm:ss} {Level:u3} ({SourceContext})] {Message:lj} (first item is {FirstItem}){NewLine}{Exception}")
             .CreateLogger();
 
-        log.Information("Running {Example}", nameof(PipelineComponentExamples));
+        log.Information("Running {Example}", nameof(PipelineComponentExample));
 
         log.ForContext<Program>()
             .Information("Cart contains {@Items}", ["Tea", "Coffee"]);
 
         log.ForContext<Program>()
             .Information("Cart contains {@Items}", ["Apricots"]);
+
+        await Task.Delay(100);
+    }
+
+    private async Task ConsoleLoggerEmulationExample()
+    {
+        logger.LogInformation("=== Console Logger Emulation Logging Example ===");
+
+        // Emulates `Microsoft.Extensions.Logging`'s `ConsoleLogger`.
+
+        var melon = new TemplateTheme(TemplateTheme.Literate, new Dictionary<TemplateThemeStyle, string>
+        {
+            // `Information` is dark green in MEL.
+            [TemplateThemeStyle.LevelInformation] = "\x1b[38;5;34m",
+            [TemplateThemeStyle.String] = "\x1b[38;5;159m",
+            [TemplateThemeStyle.Number] = "\x1b[38;5;159m"
+        });
+
+        using var log = new LoggerConfiguration()
+            .WriteTo.Console(new ExpressionTemplate(
+                "{@l:w4}: {SourceContext}\n" +
+                "{#if Scope is not null}" +
+                "      {#each s in Scope}=> {s}{#delimit} {#end}\n" +
+                "{#end}" +
+                "      {@m}\n" +
+                "{@x}",
+                theme: melon))
+            .CreateLogger();
+
+        var program = log.ForContext<Program>();
+        program.Information("Host listening at {ListenUri}", "https://hello-world.local");
+
+        program
+            .ForContext("Scope", consoleLoggerScopes)
+            .Information("HTTP {Method} {Path} responded {StatusCode} in {Elapsed:0.000} ms", "GET", "/api/hello", 200, 1.23);
+
+        program.Warning("We've reached the end of the line");
 
         await Task.Delay(100);
     }
