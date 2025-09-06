@@ -55,6 +55,9 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private const int MaxVerbatimStringLookbackLines = 10;
     // When detecting concatenated strings, look back up to 5 lines to find the Serilog call
     private const int MaxConcatenationLookbackLines = 5;
+    
+    // Static compiled regex for finding string literals
+    private static readonly Regex StringLiteralRegex = new(@"""[^""]*""", RegexOptions.Compiled);
 
     // Performance optimizations
     private ITextSnapshot _lastSnapshot;
@@ -472,8 +475,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 DiagnosticLogger.Log($"[SerilogClassifier] No regex matches but isSerilogCall=true, looking for string literals");
 #endif
                 // Find all string literals in the text
-                var stringLiteralPattern = new Regex(@"""[^""]*""");
-                var stringMatches = stringLiteralPattern.Matches(text);
+                var stringMatches = StringLiteralRegex.Matches(text);
                 
 #if DEBUG
                 DiagnosticLogger.Log($"[SerilogClassifier] Found {stringMatches.Count} string literals");
@@ -523,10 +525,9 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // Special handling for ForContext patterns that span multiple lines
             // These won't be matched by the main regex but need to be processed
             // BUT skip this if we already processed via the fallback (matches.Count == 0 && isSerilogCall)
-            if (!(matches.Count == 0 && isSerilogCall) && text.Contains("ForContext") && (text.Contains(".Information")
-                || text.Contains(".Debug")
-                || text.Contains(".Warning")
-                || text.Contains(".Error")))
+            if (!(matches.Count == 0 && isSerilogCall) && text.Contains("ForContext")
+                && (text.Contains(".Information") || text.Contains(".Debug")
+                    || text.Contains(".Warning") || text.Contains(".Error")))
             {
 #if DEBUG
                 DiagnosticLogger.Log($"[SerilogClassifier] Checking for multi-line ForContext patterns");

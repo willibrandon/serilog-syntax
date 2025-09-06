@@ -553,7 +553,7 @@ internal static class SyntaxTreeAnalyzer
                 var nestedTargetName = nestedIdentifier.Identifier.ValueText;
                 LogDiagnostic($"[IsSerilogMethodInvocation] Contextual target: {nestedTargetName}");
                 // Check for both uppercase "Log" and any variable containing "log" (case-insensitive)
-                if (nestedTargetName == "Log" || nestedTargetName.ToLowerInvariant().Contains("log"))
+                if (nestedTargetName == "Log" || nestedTargetName.IndexOf("log", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     LogDiagnostic($"[IsSerilogMethodInvocation] Matched contextual logger call");
                     return true;

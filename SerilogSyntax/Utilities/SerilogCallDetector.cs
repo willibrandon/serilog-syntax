@@ -44,8 +44,19 @@ internal static class SerilogCallDetector
     ///              .Information("template", ...)
     /// </summary>
     private static readonly Regex MultiLineForContextRegex = new(
-        @"(\w+)\.ForContext(?:<[^>]+>)?\s*\(\s*\)\s*\r?\n\s*\.(?:Information|Debug|Warning|Error|Fatal|Verbose)\s*\(\s*""([^""]+)""",
-        RegexOptions.Compiled | RegexOptions.Multiline);
+        @"
+        # Match variable name and ForContext call
+        (\w+)                       # variable name (e.g., log, logger)
+        \.ForContext                # .ForContext
+        (?:<[^>]+>)?                # optional generic type parameter
+        \s*\(\s*\)                  # parentheses with optional whitespace
+        \s*\r?\n\s*                 # newline and optional whitespace
+        \.                          # dot before logging method
+        (?:Information|Debug|Warning|Error|Fatal|Verbose) # logging method
+        \s*\(                       # opening parenthesis
+        \s*""([^""]+)""             # string literal (template)
+        ",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
 
     // Cache for recent match results
     private static readonly LruCache<string, bool> CallCache = new(100);
