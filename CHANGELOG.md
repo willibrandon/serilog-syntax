@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-09-06
+
+### Fixed
+- Multi-line ForContext patterns now correctly highlighted (#3)
+  - Properties in templates like `{@Items}` are now highlighted when ForContext is on one line and logging method on the next
+  - Added SyntaxTreeAnalyzer fallback for complex multi-line patterns
+  - Enhanced regex detection for ForContext chains split across lines
+- Multi-line outputTemplate patterns now correctly highlighted (#5)
+  - Properties like `{Timestamp}` are now highlighted when `outputTemplate:` parameter is on one line and template string on the next
+  - Enhanced concatenated template fragment detection
+  - Added dedicated regex for multi-line outputTemplate detection
+- ForContext logger variables now correctly detected (#7)
+  - Template properties like `{ListenUri}` are now highlighted when using logger variables from ForContext calls (e.g., `var program = log.ForContext<Program>()`)
+  - Enhanced SerilogCallDetector with dotted method patterns (`.Information`, `.Debug`, etc.)
+  - Added duplicate processing detection to prevent overlapping matches between regex patterns
+  - Separated quick check patterns into logical arrays for better maintainability
+
+### Added
+- Performance benchmarking infrastructure for overlap detection algorithms
+  - Benchmarks comparing O(n²) vs binary search vs SortedSet approaches
+  - Empirical validation showing original O(n²) algorithm performs best for typical usage patterns
+
 ## [0.5.1] - 2025-09-04
 
 ### Fixed
@@ -231,6 +253,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.5.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.2
 [0.5.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.1
 [0.5.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.0
 [0.4.5]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.4.5
