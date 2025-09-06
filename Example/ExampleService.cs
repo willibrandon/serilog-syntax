@@ -28,6 +28,7 @@ public class ExampleService(ILogger<ExampleService> logger)
         await ErrorHandlingExamples();
         await PerformanceLoggingExamples();
         await TextFormattingExamples();
+        await PipelineComponentExamples();
     }
 
     /// <summary>
@@ -508,6 +509,28 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
             .CreateLogger();
 
         log.Information("Running {Example}", nameof(TextFormattingExamples));
+
+        log.ForContext<Program>()
+            .Information("Cart contains {@Items}", ["Tea", "Coffee"]);
+
+        log.ForContext<Program>()
+            .Information("Cart contains {@Items}", ["Apricots"]);
+
+        await Task.Delay(100);
+    }
+
+    private async Task PipelineComponentExamples()
+    {
+        using var log = new LoggerConfiguration()
+            .Enrich.WithProperty("Application", "Example")
+            .Enrich.WithComputed("FirstItem", "coalesce(Items[0], '<empty>')")
+            .Enrich.WithComputed("SourceContext", "coalesce(Substring(SourceContext, LastIndexOf(SourceContext, '.') + 1), '<no source>')")
+            .Filter.ByIncludingOnly("Items is null or Items[?] like 'C%'")
+            .WriteTo.Console(outputTemplate:
+                "[{Timestamp:HH:mm:ss} {Level:u3} ({SourceContext})] {Message:lj} (first item is {FirstItem}){NewLine}{Exception}")
+            .CreateLogger();
+
+        log.Information("Running {Example}", nameof(PipelineComponentExamples));
 
         log.ForContext<Program>()
             .Information("Cart contains {@Items}", ["Tea", "Coffee"]);
