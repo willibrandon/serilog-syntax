@@ -1,9 +1,8 @@
-using System;
-using System.Linq;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using SerilogSyntax.Classification;
 using SerilogSyntax.Tests.TestHelpers;
+using System.Linq;
 using Xunit;
 
 namespace SerilogSyntax.Tests.Classification
@@ -151,6 +150,40 @@ logger.LogInformation(""""""
             ((MockTextBuffer)textBuffer).Replace(new Span(0, 4), "changed");
             
             Assert.True(eventRaised);
+        }
+
+        [Fact]
+        public void GetClassificationSpans_ForContextWithNewLine_HighlightsDestructuredProperty()
+        {
+            // Arrange - exact scenario from the screenshot where 'log' uses ForContext<Program>()
+            // on one line followed by .Information() on the next line
+            var code = @"
+log.ForContext<Program>()
+    .Information(""Cart contains {@Items}"", [""Tea"", ""Coffee""]);
+
+log.ForContext<Program>()
+    .Information(""Cart contains {@Items}"", [""Apricots""]);";
+
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert - should find classifications for {@Items} in both calls
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find the @ destructuring operator
+            var destructuringOps = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.DestructureOperator).ToList();
+            Assert.Equal(2, destructuringOps.Count); // One @ for each {@Items}
+            
+            // Should find the property names
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(2, properties.Count); // One Items for each {@Items}
         }
     }
 }

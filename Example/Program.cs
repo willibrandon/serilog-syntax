@@ -1,6 +1,5 @@
 using Example;
 
-// Setup Serilog initially with basic console logging
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
@@ -10,7 +9,6 @@ try
 {
     Log.Information("Starting Serilog Syntax Example Application");
 
-    // Create a host with dependency injection
     var host = Host.CreateDefaultBuilder(args)
         .UseSerilog((context, services, configuration) => configuration
             .ReadFrom.Configuration(context.Configuration)
@@ -26,7 +24,6 @@ try
         })
         .Build();
 
-    // Run the example
     var exampleService = host.Services.GetRequiredService<ExampleService>();
     await exampleService.RunExamplesAsync();
 

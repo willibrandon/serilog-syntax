@@ -37,6 +37,27 @@ internal static class SerilogCallDetector
         @"(?:\b\w+\.(?:ForContext(?:<[^>]+>)?\([^)]*\)\.)?(?:Log(?:Verbose|Debug|Information|Warning|Error|Critical|Fatal)|(?:Verbose|Debug|Information|Warning|Error|Fatal|Write)|BeginScope)\s*\()|(?:outputTemplate\s*:\s*)|(?:\.?(?:Filter\.)?(?:ByExcluding|ByIncludingOnly)\s*\()|(?:\.?(?:Enrich\.)?(?:WithComputed|When)\s*\()|(?:\.?(?:WriteTo\.)?Conditional\s*\()|(?:new\s+ExpressionTemplate\s*\()",
         RegexOptions.Compiled);
 
+    /// <summary>
+    /// Regex pattern that matches multi-line ForContext patterns where ForContext is on one line
+    /// and the logging method is on the next line.
+    /// Example: someVar.ForContext<T>()
+    ///              .Information("template", ...)
+    /// </summary>
+    private static readonly Regex MultiLineForContextRegex = new(
+        @"
+        # Match variable name and ForContext call
+        (\w+)                       # variable name (e.g., log, logger)
+        \.ForContext                # .ForContext
+        (?:<[^>]+>)?                # optional generic type parameter
+        \s*\(\s*\)                  # parentheses with optional whitespace
+        \s*\r?\n\s*                 # newline and optional whitespace
+        \.                          # dot before logging method
+        (?:Information|Debug|Warning|Error|Fatal|Verbose) # logging method
+        \s*\(                       # opening parenthesis
+        \s*""([^""]+)""             # string literal (template)
+        ",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
+
     // Cache for recent match results
     private static readonly LruCache<string, bool> CallCache = new(100);
 
@@ -152,6 +173,17 @@ internal static class SerilogCallDetector
             return SerilogCallRegex.Matches(""); // Return empty collection
             
         return SerilogCallRegex.Matches(text);
+    }
+    
+    /// <summary>
+    /// Finds all multi-line ForContext patterns in the text where ForContext is on one line
+    /// and the logging method is on the next line.
+    /// </summary>
+    /// <param name="text">The text to search</param>
+    /// <returns>Matches containing the multi-line ForContext patterns</returns>
+    public static MatchCollection FindMultiLineForContextCalls(string text)
+    {
+        return MultiLineForContextRegex.Matches(text);
     }
     
     /// <summary>
