@@ -605,7 +605,12 @@ internal class SerilogClassifier : IClassifier, IDisposable
             // Where outputTemplate: is on one line and the template string is on the next
             // BUT only if we haven't already processed these templates through normal matching
             // Also check if we're processing just a string literal that might be part of a multi-line outputTemplate
-            if (text.Contains("outputTemplate:") || (text.Trim().StartsWith("\"") && span.Start.Position > 0))
+            
+            // Performance optimization: cache the Contains result to avoid redundant string searches
+            bool hasOutputTemplate = text.Contains("outputTemplate:");
+            bool startsWithQuote = text.Trim().StartsWith("\"");
+            
+            if (hasOutputTemplate || (startsWithQuote && span.Start.Position > 0))
             {
 #if DEBUG
                 DiagnosticLogger.Log($"[SerilogClassifier] Checking for multi-line outputTemplate patterns");
@@ -614,7 +619,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 // If we're processing a single line that starts with a string literal,
                 // check if the previous line contains outputTemplate:
                 var textToSearch = text;
-                if (!text.Contains("outputTemplate:") && text.Trim().StartsWith("\""))
+                if (!hasOutputTemplate && startsWithQuote)
                 {
                     // Look at the previous line
                     var currentLine = span.Snapshot.GetLineFromPosition(span.Start);
@@ -639,6 +644,10 @@ internal class SerilogClassifier : IClassifier, IDisposable
                 DiagnosticLogger.Log($"[SerilogClassifier] Found {outputTemplateMatches.Count} multi-line outputTemplate patterns");
 #endif
                 
+                // Named constant for position proximity threshold
+                // Templates within 100 characters are considered likely to be the same match
+                const int PositionProximityThreshold = 100;
+                
                 foreach (Match otMatch in outputTemplateMatches)
                 {
                     if (otMatch.Groups.Count > 1)
@@ -649,7 +658,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                         var templateStartInText = otMatch.Index + otMatch.Value.IndexOf('"');
                         
                         // If we added previous line text, we need to adjust position back to current span
-                        if (textToSearch != text && !text.Contains("outputTemplate:"))
+                        if (textToSearch != text && !hasOutputTemplate)
                         {
                             // The match position includes the previous line, so subtract it
                             var previousLineLength = textToSearch.Length - text.Length;
@@ -673,7 +682,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                             // If there's an outputTemplate match that's close to this position,
                             // it means the template was already processed
                             if (existingMatch.Value.Contains("outputTemplate") && 
-                                Math.Abs(existingMatch.Index - otMatch.Index) < 100)
+                                Math.Abs(existingMatch.Index - otMatch.Index) < PositionProximityThreshold)
                             {
                                 alreadyProcessed = true;
 #if DEBUG
