@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Example;
+﻿namespace Example;
 
 public class ExampleService(ILogger<ExampleService> logger)
 {
