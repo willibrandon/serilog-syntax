@@ -407,33 +407,37 @@ internal class SerilogClassifier : IClassifier, IDisposable
 
                         if (isActuallySerilogTemplate)
                         {
-                            // Check if we're inside an ExpressionTemplate
-                            bool isExpressionTemplate = false;
-
-                            // Look backwards to find if this is an ExpressionTemplate
-                            for (int i = currentLine.LineNumber - 1; i >= Math.Max(0, currentLine.LineNumber - 10); i--)
-                            {
-                                var checkLine = span.Snapshot.GetLineFromLineNumber(i);
-                                var checkText = checkLine.GetText();
-
-                                if (checkText.Contains("new ExpressionTemplate("))
-                                {
-                                    isExpressionTemplate = true;
-                                    break;
-                                }
-                            }
+                            // Use modern syntax tree analyzer to check if we're inside an ExpressionTemplate
+                            var expressionContext = SyntaxTreeAnalyzer.GetExpressionContext(span.Snapshot, positionToCheck);
+                            bool isExpressionTemplate = expressionContext == ExpressionContext.ExpressionTemplate;
 
                             if (isExpressionTemplate)
                             {
-                                // Parse as expression template
-                                DiagnosticLogger.Log($"[SerilogClassifier] Parsing ExpressionTemplate text: '{text}'");
-                                var parser = new ExpressionParser(text);
-                                var expressionRegions = parser.ParseExpressionTemplate();
+                                // Check if this range has already been processed by the modern syntax tree analyzer
+                                bool alreadyProcessed = false;
+                                foreach (var existingClassification in classifications)
+                                {
+                                    if (existingClassification.ClassificationType.Classification.Contains("serilog.expression") &&
+                                        existingClassification.Span.IntersectsWith(span))
+                                    {
+                                        alreadyProcessed = true;
+                                        DiagnosticLogger.Log($"[SerilogClassifier] ExpressionTemplate at {span.Start} already processed by modern analyzer, skipping legacy fallback");
+                                        break;
+                                    }
+                                }
 
-                                // Create classifications for expression regions
-                                int offsetInSnapshot = span.Start;
-                                DiagnosticLogger.Log($"[SerilogClassifier] Adding {expressionRegions.Count()} expression classifications at offset {offsetInSnapshot}");
-                                _spanBuilder.AddExpressionClassifications(classifications, span.Snapshot, offsetInSnapshot, expressionRegions);
+                                if (!alreadyProcessed)
+                                {
+                                    // Parse as expression template
+                                    DiagnosticLogger.Log($"[SerilogClassifier] Parsing ExpressionTemplate text: '{text}'");
+                                    var parser = new ExpressionParser(text);
+                                    var expressionRegions = parser.ParseExpressionTemplate();
+
+                                    // Create classifications for expression regions
+                                    int offsetInSnapshot = span.Start;
+                                    DiagnosticLogger.Log($"[SerilogClassifier] Adding {expressionRegions.Count()} expression classifications at offset {offsetInSnapshot}");
+                                    _spanBuilder.AddExpressionClassifications(classifications, span.Snapshot, offsetInSnapshot, expressionRegions);
+                                }
                             }
                             else
                             {

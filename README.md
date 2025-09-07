@@ -9,24 +9,27 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 ### 🎨 Syntax Highlighting
 
 #### Message Templates
-- **Property names** highlighted in blue: `{UserId}`, `{UserName}`
-- **Destructuring operator** `@` highlighted in dark goldenrod: `{@User}`
-- **Stringification operator** `$` highlighted in dark goldenrod: `{$Settings}`
-- **Format specifiers** highlighted in teal: `{Timestamp:yyyy-MM-dd}`
+- **Property names** highlighted in theme-appropriate blue: `{UserId}`, `{UserName}`
+- **Destructuring operator** `@` highlighted in warm orange/red: `{@User}`
+- **Stringification operator** `$` highlighted in warm orange/red: `{$Settings}`
+- **Format specifiers** highlighted in green: `{Timestamp:yyyy-MM-dd}`
 - **Alignment** highlighted in red: `{Name,10}`, `{Price,-8}`
-- **Positional parameters** highlighted in dark violet: `{0}`, `{1}`
-- **Property braces** highlighted in purple for structure
+- **Positional parameters** highlighted in purple: `{0}`, `{1}`
+- **Property braces** highlighted for structure
 - **Multi-line verbatim strings** fully supported with proper highlighting across lines
 - **C# 11 raw string literals** supported with `"""` delimiters for complex templates
+- **Automatic theme adaptation** - All colors automatically adjust for Light/Dark themes
 
 #### Serilog.Expressions
 - **Filter expressions** in `Filter.ByExcluding()` and `Filter.ByIncludingOnly()`
 - **Expression templates** with control flow directives
-- **Operators** highlighted distinctly: `and`, `or`, `not`, `like`, `in`, `is null`
-- **Functions** highlighted: `StartsWith()`, `Contains()`, `Length()`, etc.
-- **Literals** properly colored: strings, numbers, booleans, null
-- **Directives** highlighted: `{#if}`, `{#each}`, `{#else}`, `{#end}`
-- **Built-in properties**: `@t`, `@m`, `@l`, `@x`, `@i`, `@p`
+- **Operators** highlighted in red: `and`, `or`, `not`, `like`, `in`, `is null`
+- **Functions** highlighted in purple: `StartsWith()`, `Contains()`, `Length()`, etc.
+- **Keywords** highlighted in blue: conditional and control flow keywords
+- **Literals** highlighted in cyan/teal: strings, numbers, booleans, null
+- **Directives** highlighted in magenta: `{#if}`, `{#each}`, `{#else}`, `{#end}`
+- **Built-in properties** highlighted in teal: `@t`, `@m`, `@l`, `@x`, `@i`, `@p`
+- **Theme-aware colors** - All expression elements adapt to Light/Dark themes
 
 ### 🔗 Smart Detection
 - Works with any logger variable name (not just `_logger` or `log`)
@@ -69,8 +72,19 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 
 ## Customization
 
+### Theme-Aware Colors & Accessibility
+The extension automatically adapts to your Visual Studio theme with **WCAG AA compliant colors**:
+
+- **Automatic theme detection** - Colors change instantly when switching between Light and Dark themes
+- **WCAG AA accessibility** - All colors maintain 4.5:1+ contrast ratios for excellent readability
+- **Semantic color grouping** - Related elements use harmonious color families:
+  - Properties: Blue family (`{UserId}`, `{Name}`)
+  - Operators: Warm colors (`@`, `$`)
+  - Format specifiers: Green family (`:yyyy-MM-dd`)
+  - Expression functions: Purple family (`StartsWith()`, `Length()`)
+
 ### Color Customization
-The extension's colors can be customized to match your preferences:
+You can still customize colors to match your preferences:
 
 1. Go to **Tools** > **Options** > **Environment** > **Fonts and Colors**
 2. In the **Display items** list, look for:
@@ -81,10 +95,17 @@ The extension's colors can be customized to match your preferences:
    - Serilog Alignment
    - Serilog Positional Index
    - Serilog Property Brace
+   - Serilog Expression Property
+   - Serilog Expression Function
+   - Serilog Expression Keyword
+   - Serilog Expression Literal
+   - Serilog Expression Operator
+   - Serilog Expression Directive
+   - Serilog Expression Built-in
 3. Select any item and modify its **Item foreground** color
 4. Click **OK** to apply changes
 
-The extension uses colors that work well in both light and dark themes by default, meeting WCAG AA accessibility standards.
+**Note**: Custom colors override the automatic theme-aware colors.
 
 ## Getting Started
 
@@ -109,10 +130,11 @@ Log.Information("User {UserId} logged in with {@Details} at {Timestamp:HH:mm:ss}
 ```
 
 You should see:
-- `UserId` in blue
-- `@` in dark goldenrod, `Details` in blue  
-- `Timestamp` in blue, `:HH:mm:ss` in teal
-- Matching braces highlighted in purple when cursor is on them
+- `UserId` in blue (adapts to your theme)
+- `@` in warm orange/red, `Details` in blue  
+- `Timestamp` in blue, `:HH:mm:ss` in green
+- Matching braces highlighted when cursor is on them
+- Colors automatically match your Light/Dark theme preference
 
 ## Supported Serilog Syntax
 
@@ -225,6 +247,7 @@ Key components:
 - `SerilogBraceMatcher` - Provides brace matching
 - `SerilogNavigationProvider` - Enables property-to-argument navigation
 - `SerilogCallDetector` - Optimized Serilog call detection with pre-check optimization
+- `SerilogThemeColors` - Theme-aware color management with WCAG AA compliance
 - `TemplateParser` - Parses Serilog message templates
 - `LruCache` - Thread-safe LRU cache providing 268x-510x performance improvement
 

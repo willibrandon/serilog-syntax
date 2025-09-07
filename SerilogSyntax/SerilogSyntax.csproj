@@ -48,10 +48,14 @@
   <ItemGroup>
     <Compile Include="Classification\ClassificationSpanBuilder.cs" />
     <Compile Include="Classification\ClassifiedRegion.cs" />
+    <Compile Include="Classification\ISerilogClassificationDefinition.cs" />
+    <Compile Include="Classification\SerilogClassificationFormatBase.cs" />
     <Compile Include="Classification\SerilogClassificationFormats.cs" />
     <Compile Include="Classification\SerilogClassificationTypes.cs" />
     <Compile Include="Classification\SerilogClassifier.cs" />
     <Compile Include="Classification\SerilogClassifierProvider.cs" />
+    <Compile Include="Classification\SerilogTextProperties.cs" />
+    <Compile Include="Classification\SerilogThemeColors.cs" />
     <Compile Include="Classification\StringConstants.cs" />
     <Compile Include="Parsing\PropertyType.cs" />
     <Compile Include="Parsing\StringLiteralParser.cs" />
@@ -100,6 +104,7 @@
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Design" />
+    <Reference Include="System.Drawing" />
     <Reference Include="PresentationCore" />
   </ItemGroup>
   <ItemGroup>
