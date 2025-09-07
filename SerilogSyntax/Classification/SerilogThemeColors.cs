@@ -23,15 +23,22 @@ public class SerilogThemeColors : IDisposable
     private readonly List<ISerilogClassificationDefinition> _classificationDefinitions = [];
     private bool _disposed = false;
 
-    // Font and Color category GUID for Visual Studio
+    // Font and Color category GUID for Visual Studio "Text Editor" (used to access font and color settings for text editor classifications)
     private const string FontAndColorCategory = "75A05685-00A8-4DED-BAE5-E7A50BFA929A";
     private readonly Guid _fontAndColorCategoryGUID = new(FontAndColorCategory);
 
-    [Import]
-    private readonly IClassificationFormatMapService _classificationFormatMapService = null;
+    // Theme detection threshold - blue component value used to distinguish Dark (< threshold) from Light (>= threshold) themes
+    private const int ThemeDetectionBlueThreshold = 100;
+
+#pragma warning disable 0649 // Field is never assigned
 
     [Import]
-    private readonly IClassificationTypeRegistryService _classificationTypeRegistryService = null;
+    private readonly IClassificationFormatMapService _classificationFormatMapService;
+
+    [Import]
+    private readonly IClassificationTypeRegistryService _classificationTypeRegistryService;
+
+#pragma warning restore 0649
 
     /// <summary>
     /// Initializes a new instance of the SerilogThemeColors class.
@@ -106,7 +113,7 @@ public class SerilogThemeColors : IDisposable
     {
         // Use tool window background as reference since editor background isn't directly available
         System.Drawing.Color referenceColor = VSColorTheme.GetThemedColor(EnvironmentColors.ToolWindowBackgroundColorKey);
-        return referenceColor.B < 100 ? VsTheme.Dark : VsTheme.Light;
+        return referenceColor.B < ThemeDetectionBlueThreshold ? VsTheme.Dark : VsTheme.Light;
     }
 
     /// <summary>

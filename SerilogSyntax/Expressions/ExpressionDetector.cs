@@ -27,6 +27,9 @@ internal class ExpressionDetector
         @"\b(?:Enrich\.)?WithComputed\s*\(\s*""[^""]*""\s*,\s*""",
         RegexOptions.Compiled);
     
+    // Pattern simplified to fix multi-line highlighting regression - removed string literal detection
+    // that was causing overlapping classifications. Now detects ExpressionTemplate constructor calls
+    // and relies on context position to determine if we're inside the template string.
     private static readonly Regex ExpressionTemplateRegex = new(
         @"\bnew\s+ExpressionTemplate\s*\(",
         RegexOptions.Compiled);
