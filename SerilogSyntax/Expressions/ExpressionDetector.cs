@@ -28,7 +28,7 @@ internal class ExpressionDetector
         RegexOptions.Compiled);
     
     private static readonly Regex ExpressionTemplateRegex = new(
-        @"\bnew\s+ExpressionTemplate\s*\(\s*[@$]?""",
+        @"\bnew\s+ExpressionTemplate\s*\(",
         RegexOptions.Compiled);
     
     private static readonly LruCache<(string line, int position), ExpressionContext> ContextCache = new(100);
