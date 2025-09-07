@@ -4,7 +4,7 @@ namespace Example;
 
 public class ExampleService(ILogger<ExampleService> logger)
 {
-    private static readonly string[] consoleLoggerScopes = ["Main", "ConsoleLoggerEmulationExample()"];
+    private static readonly string[] consoleLoggerScopes = [nameof(RunExamplesAsync), nameof(ConsoleLoggerEmulationExample)];
 
     public async Task RunExamplesAsync()
     {
@@ -135,7 +135,7 @@ Even with ""escaped quotes"" in the template",
             {
                     new { Product = "Laptop", Price = 999.99m, Quantity = 1 },
                     new { Product = "Mouse", Price = 29.99m, Quantity = 2 }
-                },
+            },
             Total = 1059.97m
         };
         logger.LogInformation("Order created {@Order}", order);
@@ -169,7 +169,7 @@ Even with ""escaped quotes"" in the template",
                 new { Name = "Laptop", Price = 999.99m, Stock = 15 },
                 new { Name = "Mouse", Price = 29.99m, Stock = 147 },
                 new { Name = "Keyboard", Price = 79.50m, Stock = 23 }
-            };
+        };
 
         logger.LogInformation("Inventory Report:");
         foreach (var item in items)
