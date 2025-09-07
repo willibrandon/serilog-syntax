@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-09-06
+
+### Added
+- Automatic theme-aware WCAG-compliant colors (#9)
+  - Colors now automatically switch between Light and Dark Visual Studio themes
+  - All colors maintain ≥4.5:1 contrast ratio for WCAG AA compliance
+  - SerilogThemeColors service with VSColorTheme.ThemeChanged event handling
+  - Theme detection using background color heuristic for custom theme compatibility
+  - Semantic color grouping: properties (blue family), operators (warm colors), functions (purple family)
+  - All 15 classification format definitions converted to use SerilogClassificationFormatBase
+  - Automatic color updates when themes change without VS restart
+
+### Fixed
+- ExpressionTemplate multi-line highlighting regression
+  - Removed overlapping classifications that caused highlighting artifacts
+  - Simplified regex pattern detection for better reliability
+  - Added deduplication logic to prevent classification conflicts
+
 ## [0.5.2] - 2025-09-06
 
 ### Fixed
@@ -253,6 +271,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.6.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.6.0
 [0.5.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.2
 [0.5.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.1
 [0.5.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.0
