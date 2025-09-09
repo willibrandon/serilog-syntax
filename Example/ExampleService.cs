@@ -392,6 +392,12 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         logger.LogError(new Exception(errorMessage), "Failed to validate {UserId} with status {ErrorCode} and details {Message}",
             userId, errorCode, errorMessage);
 
+        // Example 3: Multi-line LogError call (for testing navigation)
+        logger.LogError(new Exception("Connection timeout"), 
+            "Processing failed for {UserId} with {ErrorCode}",
+            userId, 
+            errorCode);
+
         await Task.Delay(100);
     }
 

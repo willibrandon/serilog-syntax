@@ -4,12 +4,14 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Utilities;
+using SerilogSyntax.Diagnostics;
 using SerilogSyntax.Parsing;
 using SerilogSyntax.Utilities;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -67,15 +69,29 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
     {
         return await Task.Run(() =>
         {
+            DiagnosticLogger.Log("=== HasSuggestedActionsAsync called ===");
             var triggerPoint = range.Start;
             var line = triggerPoint.GetContainingLine();
             var lineText = line.GetText();
             var lineStart = line.Start.Position;
 
+            DiagnosticLogger.Log($"Line text: '{lineText}'");
+            DiagnosticLogger.Log($"Trigger position: {triggerPoint.Position}");
+
             // Check if we're in a Serilog call
             var serilogMatch = SerilogCallDetector.FindSerilogCall(lineText);
+            DiagnosticLogger.Log($"Serilog match on current line: {(serilogMatch != null ? $"Found at {serilogMatch.Index}" : "Not found")}");
             if (serilogMatch == null)
-                return false;
+            {
+                // Check if we're inside a multi-line template
+                var multiLineResult = FindSerilogCallInPreviousLines(range.Snapshot, line);
+                DiagnosticLogger.Log($"Multi-line Serilog call: {(multiLineResult != null ? "Found" : "Not found")}");
+                if (multiLineResult == null)
+                {
+                    DiagnosticLogger.Log("No Serilog call found - returning false");
+                    return false;
+                }
+            }
 
             // Find the template string
             var templateMatch = FindTemplateString(lineText, serilogMatch.Index + serilogMatch.Length);
@@ -122,27 +138,78 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
 
         // Check if we're in a Serilog call
         var serilogMatch = SerilogCallDetector.FindSerilogCall(lineText);
-        if (serilogMatch == null)
-            yield break;
-
-        // Find the template string
-        var templateMatch = FindTemplateString(lineText, serilogMatch.Index + serilogMatch.Length);
-        if (!templateMatch.HasValue)
-            yield break;
-
-        var (templateStart, templateEnd) = templateMatch.Value;
-        var template = lineText.Substring(templateStart, templateEnd - templateStart);
+        ITextSnapshotLine serilogCallLine = line;
         
-        // Check if cursor is within template
-        var positionInLine = triggerPoint.Position - lineStart;
-        if (positionInLine < templateStart || positionInLine > templateEnd)
-            yield break;
+        // If no Serilog call found on current line, check if we're inside a multi-line template
+        if (serilogMatch == null)
+        {
+            var multiLineResult = FindSerilogCallInPreviousLines(range.Snapshot, line);
+            if (multiLineResult == null)
+                yield break;
+                
+            serilogMatch = multiLineResult.Value.Match;
+            serilogCallLine = multiLineResult.Value.Line;
+        }
+
+        // Find the template string - handle both single-line and multi-line scenarios
+        string template;
+        int templateStartPosition;
+        int templateEndPosition;
+        
+        if (serilogCallLine == line)
+        {
+            // Same-line scenario: template starts on the same line as the Serilog call
+            var templateMatch = FindTemplateString(lineText, serilogMatch.Index + serilogMatch.Length);
+            if (!templateMatch.HasValue)
+            {
+                // No complete template found on this line - check if it's a multi-line template starting here
+                var multiLineTemplate = ReconstructMultiLineTemplate(range.Snapshot, serilogCallLine, line);
+                if (multiLineTemplate == null)
+                    yield break;
+                    
+                template = multiLineTemplate.Value.Template;
+                templateStartPosition = multiLineTemplate.Value.StartPosition;
+                templateEndPosition = multiLineTemplate.Value.EndPosition;
+                
+                // Check if cursor is within the multi-line template bounds
+                if (triggerPoint.Position < templateStartPosition || triggerPoint.Position > templateEndPosition)
+                    yield break;
+            }
+            else
+            {
+                // Complete single-line template found
+                var (templateStart, templateEnd) = templateMatch.Value;
+                template = lineText.Substring(templateStart, templateEnd - templateStart);
+                templateStartPosition = lineStart + templateStart;
+                templateEndPosition = lineStart + templateEnd;
+                
+                // Check if cursor is within template
+                var positionInLine = triggerPoint.Position - lineStart;
+                if (positionInLine < templateStart || positionInLine > templateEnd)
+                    yield break;
+            }
+        }
+        else
+        {
+            // Multi-line scenario: reconstruct the full template from multiple lines
+            var multiLineTemplate = ReconstructMultiLineTemplate(range.Snapshot, serilogCallLine, line);
+            if (multiLineTemplate == null)
+                yield break;
+                
+            template = multiLineTemplate.Value.Template;
+            templateStartPosition = multiLineTemplate.Value.StartPosition;
+            templateEndPosition = multiLineTemplate.Value.EndPosition;
+            
+            // Check if cursor is within the multi-line template bounds
+            if (triggerPoint.Position < templateStartPosition || triggerPoint.Position > templateEndPosition)
+                yield break;
+        }
 
         // Parse template to find properties
         var properties = _parser.Parse(template).ToList();
         
         // Find which property the cursor is on
-        var cursorPosInTemplate = positionInLine - templateStart;
+        var cursorPosInTemplate = triggerPoint.Position - templateStartPosition;
         var property = properties.FirstOrDefault(p => 
             cursorPosInTemplate >= p.BraceStartIndex && 
             cursorPosInTemplate <= p.BraceEndIndex);
@@ -154,15 +221,17 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         var propertyIndex = GetArgumentIndex(properties, property);
         if (propertyIndex >= 0)
         {
-            var argumentLocation = FindArgumentByPosition(lineText, templateEnd, propertyIndex);
-            if (argumentLocation.HasValue)
+            // For both single-line and multi-line templates starting on the same line as the Serilog call,
+            // we need to search for arguments from the template end position
+            var multiLineLocation = FindArgumentInMultiLineCall(range.Snapshot, templateEndPosition, propertyIndex);
+            if (multiLineLocation.HasValue)
             {
                 var actions = new ISuggestedAction[] 
                 {
                     new NavigateToArgumentAction(
                         textView,
-                        lineStart + argumentLocation.Value.Item1,
-                        argumentLocation.Value.Item2,
+                        multiLineLocation.Value.Item1,
+                        multiLineLocation.Value.Item2,
                         property.Name,
                         property.Type)
                 };
@@ -203,8 +272,31 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
     /// <returns>A tuple of (start, end) indices of the string content, or null if not found.</returns>
     private (int, int)? FindTemplateString(string line, int startIndex)
     {
+        // Check if this is LogError with exception parameter
+        bool hasExceptionParam = line.Contains("LogError") && HasExceptionParameterBeforeTemplate(line, startIndex);
+        
         // Look for string literal after Serilog method call
-        for (int i = startIndex; i < line.Length; i++)
+        // If this has an exception parameter, we need to skip over it to find the template string
+        int searchPos = startIndex;
+        if (hasExceptionParam)
+        {
+            // Skip over the exception parameter by finding the first comma at parenthesis depth 1
+            int parenDepth = 1;
+            while (searchPos < line.Length && parenDepth > 0)
+            {
+                char c = line[searchPos];
+                if (c == '(') parenDepth++;
+                else if (c == ')') parenDepth--;
+                else if (c == ',' && parenDepth == 1)
+                {
+                    searchPos++; // Move past the comma
+                    break;
+                }
+                searchPos++;
+            }
+        }
+        
+        for (int i = searchPos; i < line.Length; i++)
         {
             if (char.IsWhiteSpace(line[i]))
                 continue;
@@ -263,6 +355,400 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
     }
 
     /// <summary>
+    /// Determines if a LogError call has an exception parameter before the template string.
+    /// </summary>
+    /// <param name="line">The line of text containing the LogError call.</param>
+    /// <param name="searchStart">The position to start searching from.</param>
+    /// <returns>True if this is LogError with exception parameter, false otherwise.</returns>
+    private bool HasExceptionParameterBeforeTemplate(string line, int searchStart)
+    {
+        // Look for the parameter structure by finding the first comma at depth 1
+        // LogError(exception, "message", args...) has a comma before the first string
+        // LogError("message", args...) has the string as the first parameter
+        
+        int pos = searchStart;
+        int parenDepth = 1; // We start after LogError(
+        bool foundCommaBeforeString = false;
+        
+        while (pos < line.Length && parenDepth > 0)
+        {
+            char c = line[pos];
+            
+            if (c == '(')
+            {
+                parenDepth++;
+            }
+            else if (c == ')')
+            {
+                parenDepth--;
+                if (parenDepth == 0) break;
+            }
+            else if (c == ',' && parenDepth == 1)
+            {
+                foundCommaBeforeString = true;
+            }
+            else if (c == '"' && parenDepth == 1)
+            {
+                // Found a string - return whether we found a comma before it
+                return foundCommaBeforeString;
+            }
+            
+            pos++;
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Searches previous lines to find a Serilog method call when the current line is inside a multi-line template.
+    /// </summary>
+    /// <param name="snapshot">The text snapshot to search in.</param>
+    /// <param name="currentLine">The current line where the cursor is positioned.</param>
+    /// <returns>A tuple of the Serilog match and the line it was found on, or null if not found.</returns>
+    private (Match Match, ITextSnapshotLine Line)? FindSerilogCallInPreviousLines(ITextSnapshot snapshot, ITextSnapshotLine currentLine)
+    {
+        // Look backward up to 10 lines to find a Serilog call
+        for (int i = currentLine.LineNumber - 1; i >= Math.Max(0, currentLine.LineNumber - 10); i--)
+        {
+            var checkLine = snapshot.GetLineFromLineNumber(i);
+            var checkText = checkLine.GetText();
+            
+            // Check if this line contains a Serilog call
+            var match = SerilogCallDetector.FindSerilogCall(checkText);
+            if (match != null)
+            {
+                // Verify we're actually inside a multi-line template by checking if the call is still open
+                if (IsInsideMultiLineTemplate(snapshot, checkLine, currentLine))
+                {
+                    return (match, checkLine);
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Determines if the current line is inside a multi-line template that started on the Serilog call line.
+    /// </summary>
+    /// <param name="snapshot">The text snapshot.</param>
+    /// <param name="serilogCallLine">The line containing the Serilog method call.</param>
+    /// <param name="currentLine">The current line where the cursor is positioned.</param>
+    /// <returns>True if inside a multi-line template, false otherwise.</returns>
+    private bool IsInsideMultiLineTemplate(ITextSnapshot snapshot, ITextSnapshotLine serilogCallLine, ITextSnapshotLine currentLine)
+    {
+        // Count string delimiters to determine if we're inside a multi-line string
+        bool inString = false;
+        bool inVerbatimString = false;
+        bool inRawString = false;
+        int rawStringQuoteCount = 0;
+        
+        for (int lineNum = serilogCallLine.LineNumber; lineNum <= currentLine.LineNumber; lineNum++)
+        {
+            var line = snapshot.GetLineFromLineNumber(lineNum);
+            var lineText = line.GetText();
+            
+            for (int i = 0; i < lineText.Length; i++)
+            {
+                char c = lineText[i];
+                
+                if (!inString && !inVerbatimString && !inRawString)
+                {
+                    // Check for start of raw string (""")
+                    if (i + 2 < lineText.Length && lineText.Substring(i, 3) == "\"\"\"")
+                    {
+                        inRawString = true;
+                        rawStringQuoteCount = 3;
+                        i += 2; // Skip next 2 quotes
+                        continue;
+                    }
+                    // Check for verbatim string (@")
+                    else if (i + 1 < lineText.Length && c == '@' && lineText[i + 1] == '"')
+                    {
+                        inVerbatimString = true;
+                        i++; // Skip the quote
+                        continue;
+                    }
+                    // Check for regular string
+                    else if (c == '"')
+                    {
+                        inString = true;
+                        continue;
+                    }
+                }
+                else if (inRawString)
+                {
+                    // Look for end of raw string
+                    if (c == '"')
+                    {
+                        int consecutiveQuotes = 1;
+                        while (i + consecutiveQuotes < lineText.Length && lineText[i + consecutiveQuotes] == '"')
+                            consecutiveQuotes++;
+                        
+                        if (consecutiveQuotes >= rawStringQuoteCount)
+                        {
+                            inRawString = false;
+                            i += consecutiveQuotes - 1;
+                        }
+                    }
+                }
+                else if (inVerbatimString)
+                {
+                    // In verbatim string, "" is escaped quote
+                    if (c == '"')
+                    {
+                        if (i + 1 < lineText.Length && lineText[i + 1] == '"')
+                        {
+                            i++; // Skip escaped quote
+                        }
+                        else
+                        {
+                            inVerbatimString = false;
+                        }
+                    }
+                }
+                else if (inString)
+                {
+                    // Regular string with \ escapes
+                    if (c == '\\' && i + 1 < lineText.Length)
+                    {
+                        i++; // Skip escaped character
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                }
+            }
+            
+            // If we've reached the current line and we're inside a string, return true
+            if (lineNum == currentLine.LineNumber && (inString || inVerbatimString || inRawString))
+            {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Reconstructs the full template string from a multi-line Serilog call.
+    /// </summary>
+    /// <param name="snapshot">The text snapshot.</param>
+    /// <param name="serilogCallLine">The line containing the Serilog method call.</param>
+    /// <param name="currentLine">The current line where the cursor is positioned.</param>
+    /// <returns>The reconstructed template with start and end positions, or null if reconstruction fails.</returns>
+    private (string Template, int StartPosition, int EndPosition)? ReconstructMultiLineTemplate(ITextSnapshot snapshot, ITextSnapshotLine serilogCallLine, ITextSnapshotLine currentLine)
+    {
+        var templateBuilder = new System.Text.StringBuilder();
+        int templateStartPosition = -1;
+        
+        bool foundTemplateStart = false;
+        bool inString = false;
+        bool inVerbatimString = false;
+        bool inRawString = false;
+        int rawStringQuoteCount = 0;
+        
+        for (int lineNum = serilogCallLine.LineNumber; lineNum <= currentLine.LineNumber + 5 && lineNum < snapshot.LineCount; lineNum++)
+        {
+            var line = snapshot.GetLineFromLineNumber(lineNum);
+            var lineText = line.GetText();
+            
+            for (int i = 0; i < lineText.Length; i++)
+            {
+                char c = lineText[i];
+                int absolutePosition = line.Start.Position + i;
+                
+                if (!foundTemplateStart && !inString && !inVerbatimString && !inRawString)
+                {
+                    // Look for template start
+                    if (i + 2 < lineText.Length && lineText.Substring(i, 3) == "\"\"\"")
+                    {
+                        // Raw string start
+                        foundTemplateStart = true;
+                        inRawString = true;
+                        rawStringQuoteCount = 3;
+                        templateStartPosition = absolutePosition + 3; // Position after opening """
+                        i += 2; // Skip next 2 quotes
+                        continue;
+                    }
+                    else if (i + 1 < lineText.Length && c == '@' && lineText[i + 1] == '"')
+                    {
+                        // Verbatim string start
+                        foundTemplateStart = true;
+                        inVerbatimString = true;
+                        templateStartPosition = absolutePosition + 2; // Position after @"
+                        i++; // Skip the quote
+                        continue;
+                    }
+                    else if (c == '"')
+                    {
+                        // Regular string start
+                        foundTemplateStart = true;
+                        inString = true;
+                        templateStartPosition = absolutePosition + 1; // Position after opening "
+                        continue;
+                    }
+                }
+                else if (foundTemplateStart)
+                {
+                    if (inRawString)
+                    {
+                        if (c == '"')
+                        {
+                            int consecutiveQuotes = 1;
+                            while (i + consecutiveQuotes < lineText.Length && lineText[i + consecutiveQuotes] == '"')
+                                consecutiveQuotes++;
+                            
+                            if (consecutiveQuotes >= rawStringQuoteCount)
+                            {
+                                // End of raw string
+                                return (templateBuilder.ToString(), templateStartPosition, absolutePosition + consecutiveQuotes);
+                            }
+                        }
+                        templateBuilder.Append(c);
+                    }
+                    else if (inVerbatimString)
+                    {
+                        if (c == '"')
+                        {
+                            if (i + 1 < lineText.Length && lineText[i + 1] == '"')
+                            {
+                                // Escaped quote in verbatim string
+                                templateBuilder.Append("\"\"");
+                                i++; // Skip next quote
+                            }
+                            else
+                            {
+                                // End of verbatim string
+                                return (templateBuilder.ToString(), templateStartPosition, absolutePosition + 1);
+                            }
+                        }
+                        else
+                        {
+                            templateBuilder.Append(c);
+                        }
+                    }
+                    else if (inString)
+                    {
+                        if (c == '\\' && i + 1 < lineText.Length)
+                        {
+                            // Escaped character in regular string
+                            templateBuilder.Append(c);
+                            i++;
+                            if (i < lineText.Length)
+                                templateBuilder.Append(lineText[i]);
+                        }
+                        else if (c == '"')
+                        {
+                            // End of regular string
+                            return (templateBuilder.ToString(), templateStartPosition, absolutePosition + 1);
+                        }
+                        else
+                        {
+                            templateBuilder.Append(c);
+                        }
+                    }
+                }
+            }
+            
+            // Add actual line ending for multi-line strings to preserve character positions
+            if (foundTemplateStart && (inVerbatimString || inRawString) && lineNum < snapshot.LineCount - 1)
+            {
+                var nextLine = snapshot.GetLineFromLineNumber(lineNum + 1);
+                if (nextLine.LineNumber <= currentLine.LineNumber + 5)
+                {
+                    // Get the actual line break text from the snapshot
+                    var lineBreakStart = line.End.Position;
+                    var lineBreakEnd = nextLine.Start.Position;
+                    if (lineBreakEnd > lineBreakStart)
+                    {
+                        var lineBreakText = snapshot.GetText(lineBreakStart, lineBreakEnd - lineBreakStart);
+                        templateBuilder.Append(lineBreakText);
+                    }
+                }
+            }
+        }
+        
+        return null; // Template reconstruction failed
+    }
+
+    /// <summary>
+    /// Finds arguments in a multi-line Serilog call where the template spans multiple lines.
+    /// </summary>
+    /// <param name="snapshot">The text snapshot.</param>
+    /// <param name="templateEndPosition">The absolute position where the template ends.</param>
+    /// <param name="argumentIndex">The zero-based index of the argument to find.</param>
+    /// <returns>A tuple of (absolute position, length) of the argument, or null if not found.</returns>
+    private (int, int)? FindArgumentInMultiLineCall(ITextSnapshot snapshot, int templateEndPosition, int argumentIndex)
+    {
+        var allArguments = new List<(int absolutePosition, int length)>();
+        
+        // Start searching from the line containing the template end position
+        var templateEndLine = snapshot.GetLineFromPosition(templateEndPosition);
+        
+        // Parse any arguments on the template end line (after the template ends)
+        var templateEndLineText = templateEndLine.GetText();
+        var templateEndInLine = templateEndPosition - templateEndLine.Start.Position;
+        
+        if (templateEndInLine < templateEndLineText.Length)
+        {
+            // Find the comma that starts the arguments (after the template)
+            var commaIndex = templateEndLineText.IndexOf(',', templateEndInLine);
+            if (commaIndex >= 0)
+            {
+                var endLineArguments = ParseArguments(templateEndLineText, commaIndex + 1);
+                foreach (var (start, length) in endLineArguments)
+                {
+                    allArguments.Add((templateEndLine.Start.Position + start, length));
+                }
+            }
+        }
+        
+        // Continue searching subsequent lines until we find closing parenthesis
+        for (int lineNum = templateEndLine.LineNumber + 1; lineNum < snapshot.LineCount; lineNum++)
+        {
+            var nextLine = snapshot.GetLineFromLineNumber(lineNum);
+            var originalLineText = nextLine.GetText();
+            var nextLineText = originalLineText.TrimStart();
+            
+            if (string.IsNullOrEmpty(nextLineText))
+                continue;
+                
+            var trimOffset = originalLineText.Length - nextLineText.Length;
+                
+            var closingParenIndex = nextLineText.IndexOf(");");
+            if (closingParenIndex >= 0)
+            {
+                var finalLineArguments = ParseArguments(nextLineText, 0);
+                foreach (var (start, length) in finalLineArguments)
+                {
+                    if (start < closingParenIndex)
+                    {
+                        allArguments.Add((nextLine.Start.Position + trimOffset + start, length));
+                    }
+                }
+                break;
+            }
+            else
+            {
+                var lineArguments = ParseArguments(nextLineText, 0);
+                foreach (var (start, length) in lineArguments)
+                {
+                    allArguments.Add((nextLine.Start.Position + trimOffset + start, length));
+                }
+            }
+        }
+        
+        if (argumentIndex < allArguments.Count)
+        {
+            return allArguments[argumentIndex];
+        }
+        
+        return null;
+    }
+
+    /// <summary>
     /// Finds the location of an argument at the specified position.
     /// </summary>
     /// <param name="line">The line containing the arguments.</param>
@@ -285,6 +771,83 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
             return (start, length);
         }
 
+        return null;
+    }
+
+    /// <summary>
+    /// Finds arguments in subsequent lines for multi-line method calls.
+    /// </summary>
+    /// <param name="currentLine">The current line containing the template.</param>
+    /// <param name="templateEnd">The end position of the template string on the current line.</param>
+    /// <param name="argumentIndex">The zero-based index of the argument to find.</param>
+    /// <returns>A tuple of (absolute position, length) of the argument, or null if not found.</returns>
+    private (int, int)? FindArgumentInSubsequentLines(ITextSnapshotLine currentLine, int templateEnd, int argumentIndex)
+    {
+        var currentLineText = currentLine.GetText();
+        
+        // Check if current line ends with comma (indicating multi-line call)
+        var commaIndex = currentLineText.IndexOf(',', templateEnd);
+        if (commaIndex < 0)
+            return null;
+        
+        // Look for arguments starting from the next line
+        var snapshot = currentLine.Snapshot;
+        var currentLineNumber = currentLine.LineNumber;
+        var allArguments = new List<(int absolutePosition, int length)>();
+        
+        // Parse any arguments on the current line after the comma
+        var currentLineArguments = ParseArguments(currentLineText, commaIndex + 1);
+        foreach (var (start, length) in currentLineArguments)
+        {
+            allArguments.Add((currentLine.Start.Position + start, length));
+        }
+        
+        // Continue searching subsequent lines until we find closing parenthesis or reach end
+        for (int lineNum = currentLineNumber + 1; lineNum < snapshot.LineCount; lineNum++)
+        {
+            var nextLine = snapshot.GetLineFromLineNumber(lineNum);
+            var originalLineText = nextLine.GetText();
+            var nextLineText = originalLineText.TrimStart();
+            
+            if (string.IsNullOrEmpty(nextLineText))
+                continue;
+                
+            // Calculate the offset from the start of the line to where the trimmed content begins
+            var trimOffset = originalLineText.Length - nextLineText.Length;
+                
+            // Check if line contains closing parenthesis (end of method call)
+            var closingParenIndex = nextLineText.IndexOf(");");
+            if (closingParenIndex >= 0)
+            {
+                // Parse arguments on this final line
+                var finalLineArguments = ParseArguments(nextLineText, 0);
+                foreach (var (start, length) in finalLineArguments)
+                {
+                    // Only add if before closing paren
+                    if (start < closingParenIndex)
+                    {
+                        allArguments.Add((nextLine.Start.Position + trimOffset + start, length));
+                    }
+                }
+                break;
+            }
+            else
+            {
+                // Parse all arguments on this line
+                var lineArguments = ParseArguments(nextLineText, 0);
+                foreach (var (start, length) in lineArguments)
+                {
+                    allArguments.Add((nextLine.Start.Position + trimOffset + start, length));
+                }
+            }
+        }
+        
+        // Return the argument at the requested index
+        if (argumentIndex < allArguments.Count)
+        {
+            return allArguments[argumentIndex];
+        }
+        
         return null;
     }
 
@@ -434,6 +997,9 @@ internal class NavigateToArgumentAction(
     string propertyName,
     PropertyType propertyType) : ISuggestedAction
 {
+    public int ArgumentStart => position;
+    public int ArgumentLength => length;
+    
     public string DisplayText => propertyType == PropertyType.Positional 
         ? $"Navigate to argument at position {propertyName}" 
         : $"Navigate to '{propertyName}' argument";
