@@ -621,7 +621,7 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
                             else
                             {
                                 // End of verbatim string
-                                return (templateBuilder.ToString(), templateStartPosition, absolutePosition + 1);
+                                return (templateBuilder.ToString(), templateStartPosition, absolutePosition);
                             }
                         }
                         else
@@ -642,7 +642,7 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
                         else if (c == '"')
                         {
                             // End of regular string
-                            return (templateBuilder.ToString(), templateStartPosition, absolutePosition + 1);
+                            return (templateBuilder.ToString(), templateStartPosition, absolutePosition);
                         }
                         else
                         {
@@ -674,6 +674,17 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
     }
 
     /// <summary>
+    /// Parses arguments starting after a comma delimiter.
+    /// </summary>
+    /// <param name="lineText">The line text to parse.</param>
+    /// <param name="commaIndex">The index of the comma delimiter.</param>
+    /// <returns>List of argument positions and lengths relative to the line start.</returns>
+    private List<(int start, int length)> ParseArgumentsAfterComma(string lineText, int commaIndex)
+    {
+        return commaIndex >= 0 ? ParseArguments(lineText, commaIndex + 1) : [];
+    }
+
+    /// <summary>
     /// Finds arguments in a multi-line Serilog call where the template spans multiple lines.
     /// </summary>
     /// <param name="snapshot">The text snapshot.</param>
@@ -695,13 +706,10 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         {
             // Find the comma that starts the arguments (after the template)
             var commaIndex = templateEndLineText.IndexOf(',', templateEndInLine);
-            if (commaIndex >= 0)
+            var endLineArguments = ParseArgumentsAfterComma(templateEndLineText, commaIndex);
+            foreach (var (start, length) in endLineArguments)
             {
-                var endLineArguments = ParseArguments(templateEndLineText, commaIndex + 1);
-                foreach (var (start, length) in endLineArguments)
-                {
-                    allArguments.Add((templateEndLine.Start.Position + start, length));
-                }
+                allArguments.Add((templateEndLine.Start.Position + start, length));
             }
         }
         
@@ -740,109 +748,6 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
             }
         }
         
-        if (argumentIndex < allArguments.Count)
-        {
-            return allArguments[argumentIndex];
-        }
-        
-        return null;
-    }
-
-    /// <summary>
-    /// Finds the location of an argument at the specified position.
-    /// </summary>
-    /// <param name="line">The line containing the arguments.</param>
-    /// <param name="templateEnd">The end position of the template string.</param>
-    /// <param name="argumentIndex">The zero-based index of the argument to find.</param>
-    /// <returns>A tuple of (start position, length) of the argument, or null if not found.</returns>
-    private (int, int)? FindArgumentByPosition(string line, int templateEnd, int argumentIndex)
-    {
-        // Find the start of arguments (after the template string)
-        var argumentsStart = line.IndexOf(',', templateEnd);
-        if (argumentsStart < 0)
-            return null;
-
-        // Parse comma-separated arguments, accounting for nested parentheses and brackets
-        var arguments = ParseArguments(line, argumentsStart + 1);
-        
-        if (argumentIndex < arguments.Count)
-        {
-            var (start, length) = arguments[argumentIndex];
-            return (start, length);
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Finds arguments in subsequent lines for multi-line method calls.
-    /// </summary>
-    /// <param name="currentLine">The current line containing the template.</param>
-    /// <param name="templateEnd">The end position of the template string on the current line.</param>
-    /// <param name="argumentIndex">The zero-based index of the argument to find.</param>
-    /// <returns>A tuple of (absolute position, length) of the argument, or null if not found.</returns>
-    private (int, int)? FindArgumentInSubsequentLines(ITextSnapshotLine currentLine, int templateEnd, int argumentIndex)
-    {
-        var currentLineText = currentLine.GetText();
-        
-        // Check if current line ends with comma (indicating multi-line call)
-        var commaIndex = currentLineText.IndexOf(',', templateEnd);
-        if (commaIndex < 0)
-            return null;
-        
-        // Look for arguments starting from the next line
-        var snapshot = currentLine.Snapshot;
-        var currentLineNumber = currentLine.LineNumber;
-        var allArguments = new List<(int absolutePosition, int length)>();
-        
-        // Parse any arguments on the current line after the comma
-        var currentLineArguments = ParseArguments(currentLineText, commaIndex + 1);
-        foreach (var (start, length) in currentLineArguments)
-        {
-            allArguments.Add((currentLine.Start.Position + start, length));
-        }
-        
-        // Continue searching subsequent lines until we find closing parenthesis or reach end
-        for (int lineNum = currentLineNumber + 1; lineNum < snapshot.LineCount; lineNum++)
-        {
-            var nextLine = snapshot.GetLineFromLineNumber(lineNum);
-            var originalLineText = nextLine.GetText();
-            var nextLineText = originalLineText.TrimStart();
-            
-            if (string.IsNullOrEmpty(nextLineText))
-                continue;
-                
-            // Calculate the offset from the start of the line to where the trimmed content begins
-            var trimOffset = originalLineText.Length - nextLineText.Length;
-                
-            // Check if line contains closing parenthesis (end of method call)
-            var closingParenIndex = nextLineText.IndexOf(");");
-            if (closingParenIndex >= 0)
-            {
-                // Parse arguments on this final line
-                var finalLineArguments = ParseArguments(nextLineText, 0);
-                foreach (var (start, length) in finalLineArguments)
-                {
-                    // Only add if before closing paren
-                    if (start < closingParenIndex)
-                    {
-                        allArguments.Add((nextLine.Start.Position + trimOffset + start, length));
-                    }
-                }
-                break;
-            }
-            else
-            {
-                // Parse all arguments on this line
-                var lineArguments = ParseArguments(nextLineText, 0);
-                foreach (var (start, length) in lineArguments)
-                {
-                    allArguments.Add((nextLine.Start.Position + trimOffset + start, length));
-                }
-            }
-        }
-        
-        // Return the argument at the requested index
         if (argumentIndex < allArguments.Count)
         {
             return allArguments[argumentIndex];
@@ -997,8 +902,8 @@ internal class NavigateToArgumentAction(
     string propertyName,
     PropertyType propertyType) : ISuggestedAction
 {
-    public int ArgumentStart => position;
-    public int ArgumentLength => length;
+    internal int ArgumentStart => position;
+    internal int ArgumentLength => length;
     
     public string DisplayText => propertyType == PropertyType.Positional 
         ? $"Navigate to argument at position {propertyName}" 
