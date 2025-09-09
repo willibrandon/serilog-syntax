@@ -222,6 +222,7 @@ internal class StringLiteralParser
     /// <param name="text">The text to search in.</param>
     /// <param name="startIndex">The index to start searching from.</param>
     /// <param name="spanStart">The absolute position of the span start in the document.</param>
+    /// <param name="skipFirstString">If true, skips the first string literal found (used for LogError with exception parameter).</param>
     /// <returns>
     /// A tuple containing the start position, end position, content, whether it's a verbatim string,
     /// and the quote count for raw strings, or null if not found.
@@ -229,10 +230,12 @@ internal class StringLiteralParser
     public (int start, int end, string text, bool isVerbatim, int quoteCount)? FindStringLiteral(
         string text,
         int startIndex,
-        int spanStart)
+        int spanStart,
+        bool skipFirstString = false)
     {
         // Look for string literal after Serilog method call
         int parenDepth = 1;
+        bool firstStringSkipped = !skipFirstString; // If we don't need to skip, act as if we already skipped
 
         while (startIndex < text.Length && parenDepth > 0)
         {
@@ -246,6 +249,14 @@ internal class StringLiteralParser
             // Check for different string literal types
             if (TryParseStringLiteral(text, startIndex, out var result))
             {
+                if (!firstStringSkipped)
+                {
+                    // Skip this string literal and continue looking for the next one
+                    firstStringSkipped = true;
+                    startIndex = result.End + 1;
+                    continue;
+                }
+
                 // Determine string type
                 bool isVerbatim = startIndex < text.Length - 1 && text[startIndex] == '@' && text[startIndex + 1] == '"';
 
@@ -267,6 +278,19 @@ internal class StringLiteralParser
                 }
 
                 return (spanStart + result.Start, spanStart + result.End, result.Content, isVerbatim, quoteCount);
+            }
+
+            // If we're looking to skip the first string but haven't found any string yet,
+            // check if we've passed the first parameter (comma or end of parameters)
+            if (!firstStringSkipped && parenDepth == 1)
+            {
+                if (text[startIndex] == ',')
+                {
+                    // Found a comma - we've passed the first parameter without finding a string
+                    firstStringSkipped = true;
+                    startIndex++;
+                    continue;
+                }
             }
 
             // Track parenthesis depth

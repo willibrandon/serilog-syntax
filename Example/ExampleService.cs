@@ -379,6 +379,19 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         logger.LogWarning("Legacy format: Error {0} occurred in method {1} at line {2}",
             "ValidationFailed", "ProcessData", 42);
 
+        // LogError with exception parameter examples (demonstrates exception parameter highlighting)
+        var userId = 42;
+        var errorCode = "E123";
+        var errorMessage = "Something went wrong";
+        
+        // Example 1: Exception with string literal constructor
+        logger.LogError(new Exception("Database connection failed"), "Error processing {UserId} with {ErrorCode} and {Message}",
+            userId, errorCode, errorMessage);
+        
+        // Example 2: Exception with variable constructor  
+        logger.LogError(new Exception(errorMessage), "Failed to validate {UserId} with status {ErrorCode} and details {Message}",
+            userId, errorCode, errorMessage);
+
         await Task.Delay(100);
     }
 

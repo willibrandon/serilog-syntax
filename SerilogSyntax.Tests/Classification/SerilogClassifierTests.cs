@@ -219,5 +219,122 @@ using var log = new LoggerConfiguration()
                 c.ClassificationType.Classification == SerilogClassificationTypes.FormatSpecifier).ToList();
             Assert.True(formatSpecifiers.Count >= 3, $"Expected at least 3 format specifiers but found {formatSpecifiers.Count}");
         }
+
+        [Fact]
+        public void GetClassificationSpans_LogErrorWithExceptionParameter_HighlightsMessageTemplateProperties()
+        {
+            // Arrange - LogError with exception parameter followed by message template and arguments
+            var code = @"logger.LogError(new Exception(""foo""), ""Error processing {UserId} with {ErrorCode} and {Message}"", userId, errorCode, errorMessage);";
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert - should find classifications for message template properties, not exception constructor
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find property names for UserId, ErrorCode, Message from the message template
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(3, properties.Count); // UserId, ErrorCode, Message
+            
+            // Should find braces for the three properties
+            var braces = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
+            Assert.Equal(6, braces.Count); // 3 opening + 3 closing braces
+        }
+
+        [Fact]
+        public void GetClassificationSpans_LogErrorWithExceptionVariable_HighlightsMessageTemplateProperties()
+        {
+            // Arrange - LogError with exception variable (not string literal) followed by message template
+            var code = @"logger.LogError(new Exception(errorMessage), ""Error processing {UserId} with {ErrorCode} and {Message}"", userId, errorCode, errorMessage);";
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert - should find classifications for message template properties
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find property names for UserId, ErrorCode, Message from the message template
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(3, properties.Count); // UserId, ErrorCode, Message
+            
+            // Should find braces for the three properties
+            var braces = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
+            Assert.Equal(6, braces.Count); // 3 opening + 3 closing braces
+        }
+
+        [Fact]
+        public void GetClassificationSpans_LogErrorWithRawStringException_HighlightsMessageTemplateProperties()
+        {
+            // Arrange - LogError with raw string literal in exception parameter
+            var code = "logger.LogError(new Exception(\"\"\"Database connection failed\"\"\"), \"Error processing {UserId} with {ErrorCode}\", userId, errorCode);";
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert - should find classifications for message template properties, not exception raw string
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find property names for UserId, ErrorCode from the message template
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(2, properties.Count); // UserId, ErrorCode
+            
+            // Should find braces for the two properties
+            var braces = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
+            Assert.Equal(4, braces.Count); // 2 opening + 2 closing braces
+        }
+
+        [Fact]
+        public void GetClassificationSpans_LogErrorWithRawStringContainingProperties_DoesNotHighlightExceptionProperties()
+        {
+            // Arrange - LogError with raw string literal containing template-like syntax in exception parameter
+            // This tests that the raw string properties {ErrorId} and {Details} are NOT highlighted,
+            // while the actual message template properties {UserId} and {Action} ARE highlighted
+            var code = "logger.LogError(new Exception(\"\"\"Error {ErrorId} occurred with details {Details}\"\"\"), \"User {UserId} performed {Action}\", userId, action);";
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find property names for UserId, Action from the message template (not ErrorId, Details from exception)
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(2, properties.Count); // UserId, Action
+            
+            // Verify the specific property names found
+            var propertyTexts = properties.Select(p => textBuffer.CurrentSnapshot.GetText(p.Span)).ToList();
+            Assert.Contains("UserId", propertyTexts);
+            Assert.Contains("Action", propertyTexts);
+            Assert.DoesNotContain("ErrorId", propertyTexts); // Should NOT highlight properties from raw string exception
+            Assert.DoesNotContain("Details", propertyTexts); // Should NOT highlight properties from raw string exception
+            
+            // Should find braces for the two properties
+            var braces = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
+            Assert.Equal(4, braces.Count); // 2 opening + 2 closing braces for message template only
+        }
     }
 }

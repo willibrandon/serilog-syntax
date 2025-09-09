@@ -850,8 +850,15 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     }
                     else
                     {
+                        // Check if this is LogError with exception parameter
+                        bool skipFirstString = IsLogErrorWithExceptionParameter(text, match, searchStart);
+                        
+#if DEBUG
+                        DiagnosticLogger.Log($"  IsLogErrorWithException: {skipFirstString}");
+#endif
+                        
                         // Find just the first string literal (simple case)
-                        var stringLiteral = _stringLiteralParser.FindStringLiteral(text, searchStart, span.Start);
+                        var stringLiteral = _stringLiteralParser.FindStringLiteral(text, searchStart, span.Start, skipFirstString);
                         allStringLiterals = stringLiteral.HasValue ? new List<(int, int, string, bool, int)> { stringLiteral.Value } : [];
                     }
                 }
@@ -1031,6 +1038,79 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private bool IsInsideRawStringLiteral(SnapshotSpan span)
     {
         return _multiLineStringDetector.IsInsideRawStringLiteral(span);
+    }
+
+    /// <summary>
+    /// Determines if a LogError call has an exception parameter before the message template.
+    /// Pattern: LogError(exception, "message template", args...) vs LogError("message template", args...)
+    /// </summary>
+    /// <param name="text">The line of text containing the LogError call.</param>
+    /// <param name="match">The regex match for the LogError method.</param>
+    /// <param name="searchStart">The position to start searching from.</param>
+    /// <returns>True if this is LogError with exception parameter, false otherwise.</returns>
+    private bool IsLogErrorWithExceptionParameter(string text, Match match, int searchStart)
+    {
+        // Only check LogError calls
+        if (!match.Value.Contains("LogError"))
+            return false;
+
+        // Look for the parameter structure by finding the first comma at depth 1
+        // LogError(exception, "message", args...) has a comma before the first string
+        // LogError("message", args...) has the string as the first parameter
+        
+        int pos = searchStart;
+        int parenDepth = 1; // We start after LogError(
+        bool foundCommaBeforeString = false;
+        
+        while (pos < text.Length && parenDepth > 0)
+        {
+            char c = text[pos];
+            
+            // Skip whitespace
+            if (char.IsWhiteSpace(c))
+            {
+                pos++;
+                continue;
+            }
+            
+            // Track parentheses depth
+            if (c == '(')
+            {
+                parenDepth++;
+                pos++;
+                continue;
+            }
+            else if (c == ')')
+            {
+                parenDepth--;
+                if (parenDepth == 0)
+                    break;
+                pos++;
+                continue;
+            }
+            
+            // At depth 1 (LogError's parameters)
+            if (parenDepth == 1)
+            {
+                // Check for string literal
+                if (c == '"' || (c == '@' && pos + 1 < text.Length && text[pos + 1] == '"'))
+                {
+                    // If we found a comma before this string, it means there's an exception parameter
+                    return foundCommaBeforeString;
+                }
+                else if (c == ',')
+                {
+                    foundCommaBeforeString = true;
+                    pos++;
+                    continue;
+                }
+            }
+            
+            pos++;
+        }
+        
+        // If we never found a string literal, default to false
+        return false;
     }
 
     /// <summary>
