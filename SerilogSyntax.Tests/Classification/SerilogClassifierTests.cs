@@ -336,5 +336,36 @@ using var log = new LoggerConfiguration()
                 c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
             Assert.Equal(4, braces.Count); // 2 opening + 2 closing braces for message template only
         }
+
+        [Fact]
+        public void GetClassificationSpans_MultiLineLogErrorWithException_HighlightsMessageTemplateProperties()
+        {
+            // Arrange - Multi-line LogError call with exception parameter spread across multiple lines
+            var code = "logger.LogError(new Exception(\"Connection timeout\"), \r\n    \"Processing failed for {UserId} with {ErrorCode}\",\r\n    userId, \r\n    errorCode);";
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+
+            // Test the specific line that's failing to get highlighted
+            var lines = textBuffer.CurrentSnapshot.Lines.ToArray();
+            var templateLine = lines[1]; // Line with the template string
+            var templateSpan = new SnapshotSpan(templateLine.Start, templateLine.End);
+
+            // Act - Test just the template line that should be highlighted
+            var result = classifier.GetClassificationSpans(templateSpan);
+
+            // Assert - this line SHOULD have classifications but currently doesn't
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications); // This will fail - proving the bug exists
+            
+            // Should find property names for UserId, ErrorCode from the message template
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(2, properties.Count); // UserId, ErrorCode
+            
+            // Should find braces for the two properties
+            var braces = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
+            Assert.Equal(4, braces.Count); // 2 opening + 2 closing braces
+        }
     }
 }

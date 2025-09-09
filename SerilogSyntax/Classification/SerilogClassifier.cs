@@ -284,10 +284,19 @@ internal class SerilogClassifier : IClassifier, IDisposable
                     }
                     else
                     {
-                        // Check if this is a concatenated string that might be part of a Serilog call
-                        // This happens when VS sends us just a fragment like: "for user {UserId} " +
-                        var trimmedText = text.TrimStart();
-                        bool looksLikeConcatenatedTemplate = false;
+                        // Check if this is part of a multi-line Serilog call
+                        bool isPartOfMultiLineSerilogCall = IsInsideMultiLineSerilogCall(span);
+                        
+                        if (isPartOfMultiLineSerilogCall)
+                        {
+                            insideString = true;
+                        }
+                        else
+                        {
+                            // Check if this is a concatenated string that might be part of a Serilog call
+                            // This happens when VS sends us just a fragment like: "for user {UserId} " +
+                            var trimmedText = text.TrimStart();
+                            bool looksLikeConcatenatedTemplate = false;
                         
                         // Check if this line looks like a concatenated string with template syntax
                         // It could end with + (continuation) or , (last string in concatenation)
@@ -383,6 +392,7 @@ internal class SerilogClassifier : IClassifier, IDisposable
                                     break;
                                 }
                             }
+                        }
                         }
                     }
 
@@ -1038,6 +1048,80 @@ internal class SerilogClassifier : IClassifier, IDisposable
     private bool IsInsideRawStringLiteral(SnapshotSpan span)
     {
         return _multiLineStringDetector.IsInsideRawStringLiteral(span);
+    }
+
+    /// <summary>
+    /// Checks if the given span is inside a multi-line Serilog method call.
+    /// </summary>
+    /// <param name="span">The span to check.</param>
+    /// <returns>True if the span is inside a multi-line Serilog call; otherwise, false.</returns>
+    private bool IsInsideMultiLineSerilogCall(SnapshotSpan span)
+    {
+        var currentLine = span.Snapshot.GetLineFromPosition(span.Start);
+        var currentText = currentLine.GetText().Trim();
+        
+        // Quick check - if this line looks like it could be part of a multi-line call
+        // (string literal, comma, or continuation)
+        if (!currentText.StartsWith("\"") && !currentText.StartsWith("@\"") && 
+            !currentText.Contains(",") && !currentText.Contains(")"))
+            return false;
+            
+        // Look backward up to 5 lines to find a Serilog call
+        for (int i = currentLine.LineNumber - 1; i >= Math.Max(0, currentLine.LineNumber - 5); i--)
+        {
+            var checkLine = span.Snapshot.GetLineFromLineNumber(i);
+            var checkText = checkLine.GetText();
+            
+            // Check if this line contains a Serilog call
+            if (SerilogCallDetector.IsSerilogCall(checkText))
+            {
+                // Found a Serilog call - now check if the call is still open
+                // (has opening parenthesis but not properly closed)
+                int openParenCount = 0;
+                int closeParenCount = 0;
+                bool inString = false;
+                bool escaped = false;
+                
+                // Count parentheses from the Serilog call line down to current line
+                for (int lineNum = i; lineNum <= currentLine.LineNumber; lineNum++)
+                {
+                    var line = span.Snapshot.GetLineFromLineNumber(lineNum);
+                    var lineText = line.GetText();
+                    
+                    foreach (char c in lineText)
+                    {
+                        if (escaped)
+                        {
+                            escaped = false;
+                            continue;
+                        }
+                        
+                        if (c == '\\' && inString)
+                        {
+                            escaped = true;
+                            continue;
+                        }
+                        
+                        if (c == '"' && !inString)
+                            inString = true;
+                        else if (c == '"' && inString)
+                            inString = false;
+                        else if (!inString)
+                        {
+                            if (c == '(')
+                                openParenCount++;
+                            else if (c == ')')
+                                closeParenCount++;
+                        }
+                    }
+                }
+                
+                // If we have more opens than closes, we're inside a multi-line call
+                return openParenCount > closeParenCount;
+            }
+        }
+        
+        return false;
     }
 
     /// <summary>
