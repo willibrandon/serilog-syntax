@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2025-09-09
+
+### Fixed
+- Multi-line template navigation for early properties in verbatim strings
+  - Navigation from early template properties (like `{AppName}`, `{Version}`, `{Environment}`) now works correctly in multi-line verbatim strings
+  - Fixed ReconstructMultiLineTemplate search range to properly find string termination beyond initial 5-line limit
+  - Extended search range from `currentLine + 5` to `Math.Max(currentLine + 5, serilogCallLine + 20)` for better coverage
+  - Resolves issue where navigation worked for later properties but failed for early ones in long multi-line templates
+
 ## [0.6.1] - 2025-09-09
 
 ### Fixed

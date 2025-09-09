@@ -440,4 +440,94 @@ public class SerilogNavigationProviderTests
         
         Assert.NotEmpty(actions); // This should fail - no navigation appears
     }
+
+    [Fact]
+    public void GetSuggestedActions_VerbatimStringMultiLine_EarlyProperties_ShouldProvideNavigation()
+    {
+        // Test the specific scenario where {AppName}, {Version}, {Environment} don't get navigation
+        var multiLineCode = 
+            "logger.LogInformation(@\"\r\n" +
+            "===============================================\r\n" +
+            "Application: {AppName}\r\n" +
+            "Version: {Version}\r\n" +
+            "Environment: {Environment}\r\n" +
+            "===============================================\r\n" +
+            "User: {UserName} (ID: {UserId})\r\n" +
+            "Session: {SessionId}\r\n" +
+            "Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}\r\n" +
+            "===============================================\r\n" +
+            "\", appName, version, env, userName, userId, sessionId, DateTime.Now);";
+            
+        var mockBuffer = new MockTextBuffer(multiLineCode);
+        var mockSnapshot = new MockTextSnapshot(multiLineCode, mockBuffer, 1);
+        var provider = new SerilogSuggestedActionsSource(null);
+        
+        // Test navigation for {AppName} - this reportedly fails
+        var appNameStart = multiLineCode.IndexOf("{AppName}");
+        var appNameRange = new SnapshotSpan(mockSnapshot, appNameStart + 1, 7); // Inside "AppName"
+        var appNameActions = provider.GetSuggestedActions(null, appNameRange, CancellationToken.None);
+        
+        // Test navigation for {Version} - this reportedly fails  
+        var versionStart = multiLineCode.IndexOf("{Version}");
+        var versionRange = new SnapshotSpan(mockSnapshot, versionStart + 1, 7); // Inside "Version"
+        var versionActions = provider.GetSuggestedActions(null, versionRange, CancellationToken.None);
+        
+        // Test navigation for {Environment} - this reportedly fails
+        var environmentStart = multiLineCode.IndexOf("{Environment}");
+        var environmentRange = new SnapshotSpan(mockSnapshot, environmentStart + 1, 11); // Inside "Environment"
+        var environmentActions = provider.GetSuggestedActions(null, environmentRange, CancellationToken.None);
+        
+        // Test navigation for {UserName} - this reportedly works
+        var userNameStart = multiLineCode.IndexOf("{UserName}");
+        var userNameRange = new SnapshotSpan(mockSnapshot, userNameStart + 1, 8); // Inside "UserName"
+        var userNameActions = provider.GetSuggestedActions(null, userNameRange, CancellationToken.None);
+        
+        // All should work, but currently only later ones do
+        Assert.NotEmpty(appNameActions);
+        Assert.NotEmpty(versionActions); 
+        Assert.NotEmpty(environmentActions);
+        Assert.NotEmpty(userNameActions);
+    }
+
+    [Fact]
+    public void GetSuggestedActions_RawStringMultiLine_EarlyProperties_ShouldProvideNavigation()
+    {
+        // Test the same issue with raw string literals
+        var multiLineCode = 
+            "logger.LogInformation(\"\"\"\r\n" +
+            "    ===============================================\r\n" +
+            "    Application: {AppName}\r\n" +
+            "    Version: {Version}\r\n" +
+            "    Environment: {Environment}\r\n" +
+            "    ===============================================\r\n" +
+            "    User: {UserName} (ID: {UserId})\r\n" +
+            "    Session: {SessionId}\r\n" +
+            "    Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}\r\n" +
+            "    ===============================================\r\n" +
+            "    \"\"\", appName, version, environment, userName, userId, sessionId, DateTime.Now);";
+            
+        var mockBuffer = new MockTextBuffer(multiLineCode);
+        var mockSnapshot = new MockTextSnapshot(multiLineCode, mockBuffer, 1);
+        var provider = new SerilogSuggestedActionsSource(null);
+        
+        // Test navigation for {AppName} - this reportedly fails
+        var appNameStart = multiLineCode.IndexOf("{AppName}");
+        var appNameRange = new SnapshotSpan(mockSnapshot, appNameStart + 1, 7); // Inside "AppName"
+        var appNameActions = provider.GetSuggestedActions(null, appNameRange, CancellationToken.None);
+        
+        // Test navigation for {Version} - this reportedly fails  
+        var versionStart = multiLineCode.IndexOf("{Version}");
+        var versionRange = new SnapshotSpan(mockSnapshot, versionStart + 1, 7); // Inside "Version"
+        var versionActions = provider.GetSuggestedActions(null, versionRange, CancellationToken.None);
+        
+        // Test navigation for {Environment} - this reportedly fails
+        var environmentStart = multiLineCode.IndexOf("{Environment}");
+        var environmentRange = new SnapshotSpan(mockSnapshot, environmentStart + 1, 11); // Inside "Environment"
+        var environmentActions = provider.GetSuggestedActions(null, environmentRange, CancellationToken.None);
+        
+        // All should work, but currently only later ones do
+        Assert.NotEmpty(appNameActions);
+        Assert.NotEmpty(versionActions); 
+        Assert.NotEmpty(environmentActions);
+    }
 }

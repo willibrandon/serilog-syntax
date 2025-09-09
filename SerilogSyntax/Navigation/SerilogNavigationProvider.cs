@@ -80,6 +80,8 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
 
             // Check if we're in a Serilog call
             var serilogMatch = SerilogCallDetector.FindSerilogCall(lineText);
+            ITextSnapshotLine serilogCallLine = line;
+            
             DiagnosticLogger.Log($"Serilog match on current line: {(serilogMatch != null ? $"Found at {serilogMatch.Index}" : "Not found")}");
             if (serilogMatch == null)
             {
@@ -91,26 +93,70 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
                     DiagnosticLogger.Log("No Serilog call found - returning false");
                     return false;
                 }
+                
+                serilogMatch = multiLineResult.Value.Match;
+                serilogCallLine = multiLineResult.Value.Line;
             }
 
-            // Find the template string
-            var templateMatch = FindTemplateString(lineText, serilogMatch.Index + serilogMatch.Length);
-            if (!templateMatch.HasValue)
-                return false;
-
-            var (templateStart, templateEnd) = templateMatch.Value;
-            var template = lineText.Substring(templateStart, templateEnd - templateStart);
+            // Find the template string - handle both single-line and multi-line scenarios
+            string template;
+            int templateStartPosition;
+            int templateEndPosition;
             
-            // Check if cursor is within template
-            var positionInLine = triggerPoint.Position - lineStart;
-            if (positionInLine < templateStart || positionInLine > templateEnd)
-                return false;
+            if (serilogCallLine == line)
+            {
+                // Same-line scenario: template starts on the same line as the Serilog call
+                var templateMatch = FindTemplateString(lineText, serilogMatch.Index + serilogMatch.Length);
+                if (!templateMatch.HasValue)
+                {
+                    // No complete template found on this line - check if it's a multi-line template starting here
+                    var multiLineTemplate = ReconstructMultiLineTemplate(range.Snapshot, serilogCallLine, line);
+                    if (multiLineTemplate == null)
+                        return false;
+                        
+                    template = multiLineTemplate.Value.Template;
+                    templateStartPosition = multiLineTemplate.Value.StartPosition;
+                    templateEndPosition = multiLineTemplate.Value.EndPosition;
+                    
+                    // Check if cursor is within the multi-line template bounds
+                    if (triggerPoint.Position < templateStartPosition || triggerPoint.Position > templateEndPosition)
+                        return false;
+                }
+                else
+                {
+                    // Complete single-line template found
+                    var (templateStart, templateEnd) = templateMatch.Value;
+                    template = lineText.Substring(templateStart, templateEnd - templateStart);
+                    templateStartPosition = lineStart + templateStart;
+                    templateEndPosition = lineStart + templateEnd;
+                    
+                    // Check if cursor is within template
+                    var positionInLine = triggerPoint.Position - lineStart;
+                    if (positionInLine < templateStart || positionInLine > templateEnd)
+                        return false;
+                }
+            }
+            else
+            {
+                // Multi-line scenario: reconstruct the full template from multiple lines
+                var multiLineTemplate = ReconstructMultiLineTemplate(range.Snapshot, serilogCallLine, line);
+                if (multiLineTemplate == null)
+                    return false;
+                    
+                template = multiLineTemplate.Value.Template;
+                templateStartPosition = multiLineTemplate.Value.StartPosition;
+                templateEndPosition = multiLineTemplate.Value.EndPosition;
+                
+                // Check if cursor is within the multi-line template bounds
+                if (triggerPoint.Position < templateStartPosition || triggerPoint.Position > templateEndPosition)
+                    return false;
+            }
 
             // Parse template to find properties
             var properties = _parser.Parse(template).ToList();
             
             // Find which property the cursor is on
-            var cursorPosInTemplate = positionInLine - templateStart;
+            var cursorPosInTemplate = triggerPoint.Position - templateStartPosition;
             var property = properties.FirstOrDefault(p => 
                 cursorPosInTemplate >= p.BraceStartIndex && 
                 cursorPosInTemplate <= p.BraceEndIndex);
@@ -549,7 +595,7 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         bool inRawString = false;
         int rawStringQuoteCount = 0;
         
-        for (int lineNum = serilogCallLine.LineNumber; lineNum <= currentLine.LineNumber + 5 && lineNum < snapshot.LineCount; lineNum++)
+        for (int lineNum = serilogCallLine.LineNumber; lineNum <= Math.Max(currentLine.LineNumber + 5, serilogCallLine.LineNumber + 20) && lineNum < snapshot.LineCount; lineNum++)
         {
             var line = snapshot.GetLineFromLineNumber(lineNum);
             var lineText = line.GetText();
@@ -656,7 +702,8 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
             if (foundTemplateStart && (inVerbatimString || inRawString) && lineNum < snapshot.LineCount - 1)
             {
                 var nextLine = snapshot.GetLineFromLineNumber(lineNum + 1);
-                if (nextLine.LineNumber <= currentLine.LineNumber + 5)
+                // Continue processing lines until we find the end of the template or reasonable limit
+                if (lineNum + 1 <= Math.Min(snapshot.LineCount - 1, serilogCallLine.LineNumber + 20))
                 {
                     // Get the actual line break text from the snapshot
                     var lineBreakStart = line.End.Position;
