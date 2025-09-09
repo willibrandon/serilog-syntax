@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2025-09-09
+
+### Fixed
+- Multi-line Serilog template navigation position calculation (#11, #14)
+  - Navigation from template properties to arguments now works correctly when Serilog calls span multiple lines
+  - Fixed template detection for multi-line verbatim strings (`@"..."`) and raw string literals (`"""..."""`)
+  - Corrected argument position calculation by starting after comma delimiter instead of at comma
+  - Added fallback to ReconstructMultiLineTemplate() when cursor is on first line of multi-line template
+  - Enhanced FindArgumentInMultiLineCall() to properly handle template end position calculation
+- LogError calls with exception parameters (#12, #13)
+  - Syntax highlighting now works correctly for `logger.LogError(exception, "template {Property}", arg)` patterns
+  - Fixed string literal parser to skip exception constructor parameter and find actual message template
+  - Added IsLogErrorWithExceptionParameter() method to detect LogError patterns with exception parameters
+  - Enhanced FindStringLiteral() with skipFirstString parameter to locate correct message template
+  - Handles both string literal and variable exception constructors
+
 ## [0.6.0] - 2025-09-06
 
 ### Added
@@ -271,6 +287,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.6.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.6.1
 [0.6.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.6.0
 [0.5.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.2
 [0.5.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.1
