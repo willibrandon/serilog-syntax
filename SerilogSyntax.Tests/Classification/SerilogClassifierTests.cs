@@ -219,5 +219,59 @@ using var log = new LoggerConfiguration()
                 c.ClassificationType.Classification == SerilogClassificationTypes.FormatSpecifier).ToList();
             Assert.True(formatSpecifiers.Count >= 3, $"Expected at least 3 format specifiers but found {formatSpecifiers.Count}");
         }
+
+        [Fact]
+        public void GetClassificationSpans_LogErrorWithExceptionParameter_HighlightsMessageTemplateProperties()
+        {
+            // Arrange - LogError with exception parameter followed by message template and arguments
+            var code = @"logger.LogError(new Exception(""foo""), ""Error processing {UserId} with {ErrorCode} and {Message}"", userId, errorCode, errorMessage);";
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert - should find classifications for message template properties, not exception constructor
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find property names for UserId, ErrorCode, Message from the message template
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(3, properties.Count); // UserId, ErrorCode, Message
+            
+            // Should find braces for the three properties
+            var braces = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
+            Assert.Equal(6, braces.Count); // 3 opening + 3 closing braces
+        }
+
+        [Fact]
+        public void GetClassificationSpans_LogErrorWithExceptionVariable_HighlightsMessageTemplateProperties()
+        {
+            // Arrange - LogError with exception variable (not string literal) followed by message template
+            var code = @"logger.LogError(new Exception(errorMessage), ""Error processing {UserId} with {ErrorCode} and {Message}"", userId, errorCode, errorMessage);";
+            var textBuffer = MockTextBuffer.Create(code);
+            var classifier = CreateClassifier(textBuffer);
+            var span = new SnapshotSpan(textBuffer.CurrentSnapshot, 0, textBuffer.CurrentSnapshot.Length);
+
+            // Act
+            var result = classifier.GetClassificationSpans(span);
+
+            // Assert - should find classifications for message template properties
+            var classifications = result.ToList();
+            Assert.NotEmpty(classifications);
+            
+            // Should find property names for UserId, ErrorCode, Message from the message template
+            var properties = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyName).ToList();
+            Assert.Equal(3, properties.Count); // UserId, ErrorCode, Message
+            
+            // Should find braces for the three properties
+            var braces = classifications.Where(c => 
+                c.ClassificationType.Classification == SerilogClassificationTypes.PropertyBrace).ToList();
+            Assert.Equal(6, braces.Count); // 3 opening + 3 closing braces
+        }
     }
 }
