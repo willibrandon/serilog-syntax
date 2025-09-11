@@ -437,3 +437,6 @@ FodyWeavers.xsd
 # Test/temporary files
 test-detector.cs
 test-detector.exe
+
+# JetBrains Rider
+.idea/

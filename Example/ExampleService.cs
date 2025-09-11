@@ -42,9 +42,9 @@ public class ExampleService(ILogger<ExampleService> logger)
         logger.LogInformation("Processing order {@Order} at {Timestamp:HH:mm:ss} | Status: {Status,10}",
             order, timestamp, "Pending");
 
-        // Stringification with $ and positional parameters
+        // Stringification with $ and named parameters
         var appVersion = new Version(1, 2, 3);
-        logger.LogWarning("Application version {$AppVersion} using legacy format: {0}, {1}, {2}",
+        logger.LogWarning("Application version {$AppVersion} using legacy format: {Level}, {Code}, {Value}",
             appVersion, "Warning", "Code-123", 42);
 
         // Complex formatting with alignment and precision
