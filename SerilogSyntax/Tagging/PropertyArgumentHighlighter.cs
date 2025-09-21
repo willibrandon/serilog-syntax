@@ -185,8 +185,7 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>
             }
 
             // Find the template string
-            bool hasExceptionParameter = false;
-            if (!ExtractTemplate(position.Snapshot, serilogCallLine, line, serilogMatch, out string template, out int templateStartPosition, out int templateEndPosition, out hasExceptionParameter))
+            if (!ExtractTemplate(position.Snapshot, serilogCallLine, line, serilogMatch, out string template, out int templateStartPosition, out int templateEndPosition, out bool hasExceptionParameter))
             {
                 DiagnosticLogger.Log("PropertyArgumentHighlighter.UpdateHighlights: Failed to extract template");
                 _highlightState.ClearHighlights();
@@ -224,7 +223,7 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>
 
             // Check if cursor is on an argument
             DiagnosticLogger.Log($"PropertyArgumentHighlighter.UpdateHighlights: Checking for argument at position {position.Position}, template ends at {templateEndPosition}, hasException={hasExceptionParameter}");
-            var argumentInfo = FindArgumentAtPosition(position.Snapshot, templateEndPosition, position.Position, properties.Count, hasExceptionParameter);
+            var argumentInfo = FindArgumentAtPosition(position.Snapshot, templateEndPosition, position.Position, properties.Count);
             DiagnosticLogger.Log($"PropertyArgumentHighlighter.UpdateHighlights: Argument search result: {argumentInfo.HasValue}");
 
             if (argumentInfo.HasValue)
@@ -417,7 +416,7 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>
         }
     }
 
-    private (int Index, int Start, int Length)? FindArgumentAtPosition(ITextSnapshot snapshot, int templateEndPosition, int cursorPosition, int propertyCount, bool hasExceptionParameter = false)
+    private (int Index, int Start, int Length)? FindArgumentAtPosition(ITextSnapshot snapshot, int templateEndPosition, int cursorPosition, int propertyCount)
     {
         DiagnosticLogger.Log($"PropertyArgumentHighlighter.FindArgumentAtPosition: Looking for argument at cursor position {cursorPosition}, template ends at {templateEndPosition}");
 
@@ -894,8 +893,7 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>
 
                         // Skip past the exception parameter to find the template
                         int parenDepth = 1;
-                        bool foundComma = false;
-                        while (startIndex < lineText.Length && !foundComma)
+                        while (startIndex < lineText.Length)
                         {
                             char c = lineText[startIndex];
                             if (c == '(') parenDepth++;
@@ -906,7 +904,6 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>
                             }
                             else if (c == ',' && parenDepth == 1)
                             {
-                                foundComma = true;
                                 startIndex++; // Move past the comma
                                 // Skip whitespace after comma
                                 while (startIndex < lineText.Length && char.IsWhiteSpace(lineText[startIndex]))

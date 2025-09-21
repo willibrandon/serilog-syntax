@@ -123,7 +123,7 @@ public class SerilogNavigationProviderTests
         var userIdStart = multiLineCode.IndexOf("{UserId}");
         var range = new SnapshotSpan(mockSnapshot, userIdStart + 1, 6); // Inside "UserId"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         
         // Act - Try to get suggested actions for navigation
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
@@ -148,7 +148,7 @@ public class SerilogNavigationProviderTests
         var departmentStart = multiLineCode.IndexOf("{Department}");
         var range = new SnapshotSpan(mockSnapshot, departmentStart + 1, 10); // Inside "Department"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -171,7 +171,7 @@ public class SerilogNavigationProviderTests
         var errorCodeStart = multiLineCode.IndexOf("{ErrorCode}");
         var range = new SnapshotSpan(mockSnapshot, errorCodeStart + 1, 9); // Inside "ErrorCode"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -193,7 +193,7 @@ public class SerilogNavigationProviderTests
         var amountStart = multiLineCode.IndexOf("{Amount:C}");
         var range = new SnapshotSpan(mockSnapshot, amountStart + 1, 6); // Inside "Amount"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -215,7 +215,7 @@ public class SerilogNavigationProviderTests
         var requestDataStart = multiLineCode.IndexOf("{@RequestData}");
         var range = new SnapshotSpan(mockSnapshot, requestDataStart + 2, 11); // Inside "RequestData"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -237,7 +237,7 @@ public class SerilogNavigationProviderTests
         var positionalStart = multiLineCode.IndexOf("{1}");
         var range = new SnapshotSpan(mockSnapshot, positionalStart + 1, 1); // Inside "1"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -258,7 +258,7 @@ public class SerilogNavigationProviderTests
         var customerStart = multiLineCode.IndexOf("{@Customer}");
         var range = new SnapshotSpan(mockSnapshot, customerStart + 2, 8); // Inside "Customer" (skip the {@)
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -298,7 +298,7 @@ public class SerilogNavigationProviderTests
         var userIdStart = multiLineCode.IndexOf("{UserId}");
         var range = new SnapshotSpan(mockSnapshot, userIdStart + 1, 6); // Inside "UserId"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions); // This should fail - no navigation appears
@@ -322,7 +322,7 @@ public class SerilogNavigationProviderTests
         var filePathStart = multiLineCode.IndexOf("{FilePath}");
         var range = new SnapshotSpan(mockSnapshot, filePathStart + 1, 8); // Inside "FilePath"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions); // This should fail - no navigation appears for {FilePath}
@@ -359,7 +359,7 @@ public class SerilogNavigationProviderTests
         var userIdStart = multiLineCode.IndexOf("{UserId}");
         var range = new SnapshotSpan(mockSnapshot, userIdStart + 1, 6); // Inside "UserId"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -396,7 +396,7 @@ public class SerilogNavigationProviderTests
         var orderStart = multiLineCode.IndexOf("{@Order}");
         var range = new SnapshotSpan(mockSnapshot, orderStart + 2, 5); // Inside "Order" (skip {@)
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -435,7 +435,7 @@ public class SerilogNavigationProviderTests
         var recordIdStart = multiLineCode.IndexOf("{RecordId}");
         var range = new SnapshotSpan(mockSnapshot, recordIdStart + 1, 8); // Inside "RecordId"
         
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions); // This should fail - no navigation appears
@@ -460,7 +460,7 @@ public class SerilogNavigationProviderTests
             
         var mockBuffer = new MockTextBuffer(multiLineCode);
         var mockSnapshot = new MockTextSnapshot(multiLineCode, mockBuffer, 1);
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         
         // Test navigation for {AppName} - this reportedly fails
         var appNameStart = multiLineCode.IndexOf("{AppName}");
@@ -508,7 +508,7 @@ public class SerilogNavigationProviderTests
             
         var mockBuffer = new MockTextBuffer(multiLineCode);
         var mockSnapshot = new MockTextSnapshot(multiLineCode, mockBuffer, 1);
-        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(null);
         
         // Test navigation for {AppName} - this reportedly fails
         var appNameStart = multiLineCode.IndexOf("{AppName}");
@@ -543,7 +543,7 @@ public class SerilogNavigationProviderTests
 
         var mockBuffer = MockTextBuffer.Create(code);
         var mockTextView = new MockTextView(mockBuffer);
-        var provider = new SerilogSuggestedActionsSource(mockTextView, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(mockTextView);
 
         // Simulate VS passing a wide range that covers multiple properties
         // The midpoint of this range will land on UserName property
@@ -577,7 +577,7 @@ logger.LogInformation(""User {UserId} ({UserName}) placed {OrderCount} orders to
 
         var mockBuffer = MockTextBuffer.Create(code);
         var mockTextView = new MockTextView(mockBuffer);
-        var provider = new SerilogSuggestedActionsSource(mockTextView, mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(mockTextView);
 
         // Find positions exactly as they appear in the screenshot scenario
         var lineStart = code.IndexOf("logger.LogInformation");  // Position 44

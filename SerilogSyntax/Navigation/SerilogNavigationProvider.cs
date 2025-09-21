@@ -42,17 +42,15 @@ internal class SerilogSuggestedActionsSourceProvider : ISuggestedActionsSourcePr
         if (textBuffer == null || textView == null)
             return null;
 
-        return new SerilogSuggestedActionsSource(textView, textBuffer);
+        return new SerilogSuggestedActionsSource(textView);
     }
 }
 
 /// <summary>
 /// Provides suggested actions for navigating from Serilog template properties to their arguments.
 /// </summary>
-internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
+internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedActionsSource
 {
-    private readonly ITextView textView;
-    private readonly ITextBuffer textBuffer;
     private EventHandler<EventArgs> _suggestedActionsChanged;
 
     public event EventHandler<EventArgs> SuggestedActionsChanged
@@ -62,12 +60,6 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
     }
 
     private readonly TemplateParser _parser = new();
-
-    public SerilogSuggestedActionsSource(ITextView textView, ITextBuffer textBuffer)
-    {
-        this.textView = textView;
-        this.textBuffer = textBuffer;
-    }
 
 
     /// <summary>
@@ -187,11 +179,8 @@ internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
                 rangeStartInTemplate <= p.BraceEndIndex);
 
             // If range start doesn't hit a property, find any property that intersects with the range
-            if (property == null)
-            {
-                property = properties.FirstOrDefault(p =>
+            property ??= properties.FirstOrDefault(p =>
                     !(rangeEndInTemplate <= p.BraceStartIndex || rangeStartInTemplate > p.BraceEndIndex));
-            }
 
             return property != null;
         }, cancellationToken);
