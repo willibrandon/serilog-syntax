@@ -49,12 +49,13 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 - **Navigate to argument** - jump from template properties to their corresponding arguments
 - Click the light bulb and select "Navigate to 'PropertyName' argument"
 
-### 🔍 Brace Matching
-- Highlight matching braces when cursor is positioned on `{` or `}`
-- Visual indication of brace pairs in complex templates
-- **Multi-line support** - matches braces across line boundaries in verbatim and raw strings
+### 🔍 Property-Argument Highlighting
+- **Smart highlighting** that connects template properties with their corresponding arguments
+- When cursor is on a property like `{UserId}`, both the property and its argument are highlighted
+- When cursor is on an argument, both the argument and its corresponding property are highlighted
+- **Multi-line support** - works across line boundaries in verbatim and raw strings
 - Press **ESC** to temporarily dismiss highlights
-- Helps identify mismatched or nested braces
+- Helps visualize the connection between template properties and their values
 
 ## Installation
 
@@ -118,7 +119,7 @@ After installation, the extension works automatically - no configuration require
    ```
 3. **See instant highlighting** as you type - properties turn blue, operators yellow, etc.
 4. **Try navigation**: Hover over a property like `{UserId}` and click the light bulb to jump to its argument
-5. **Test brace matching**: Place your cursor on any `{` or `}` to see its matching pair highlighted
+5. **Test property-argument highlighting**: Place your cursor on a property or argument to see both highlighted
 
 ### Quick Test
 Create a new C# file and paste this to see all features:
@@ -131,9 +132,9 @@ Log.Information("User {UserId} logged in with {@Details} at {Timestamp:HH:mm:ss}
 
 You should see:
 - `UserId` in blue (adapts to your theme)
-- `@` in warm orange/red, `Details` in blue  
+- `@` in warm orange/red, `Details` in blue
 - `Timestamp` in blue, `:HH:mm:ss` in green
-- Matching braces highlighted when cursor is on them
+- Property-argument pairs highlighted when cursor is on them
 - Colors automatically match your Light/Dark theme preference
 
 ## Supported Serilog Syntax
@@ -238,13 +239,13 @@ log.LogError("Error with {Context}", context);
 The extension uses Visual Studio's extensibility APIs:
 
 - **Roslyn Classification API** - For syntax highlighting via `IClassifier`
-- **Roslyn Tagging API** - For brace matching via `ITagger<TextMarkerTag>`  
+- **Roslyn Tagging API** - For property-argument highlighting via `ITagger<TextMarkerTag>`
 - **Suggested Actions API** - For navigation features via `ISuggestedActionsSourceProvider`
 - **MEF (Managed Extensibility Framework)** - For Visual Studio integration
 
 Key components:
 - `SerilogClassifier` - Handles syntax highlighting with smart cache invalidation
-- `SerilogBraceMatcher` - Provides brace matching
+- `PropertyArgumentHighlighter` - Provides property-argument connection highlighting
 - `SerilogNavigationProvider` - Enables property-to-argument navigation
 - `SerilogCallDetector` - Optimized Serilog call detection with pre-check optimization
 - `SerilogThemeColors` - Theme-aware color management with WCAG AA compliance

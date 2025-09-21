@@ -72,10 +72,10 @@
     <Compile Include="Parsing\TemplateProperty.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SerilogSyntaxPackage.cs" />
-    <Compile Include="Tagging\SerilogBraceMatcher.cs" />
-    <Compile Include="Tagging\SerilogBraceHighlightState.cs" />
-    <Compile Include="Tagging\SerilogBraceEscCommandHandler.cs" />
-    <Compile Include="Tagging\SerilogBraceMatchProvider.cs" />
+    <Compile Include="Tagging\PropertyArgumentHighlighter.cs" />
+    <Compile Include="Tagging\PropertyArgumentHighlightState.cs" />
+    <Compile Include="Tagging\PropertyArgumentEscCommandHandler.cs" />
+    <Compile Include="Tagging\PropertyArgumentHighlighterProvider.cs" />
     <Compile Include="Utilities\CacheManager.cs" />
     <Compile Include="Utilities\LruCache.cs" />
     <Compile Include="Utilities\MultiLineStringDetector.cs" />

@@ -151,16 +151,16 @@ public class MockTextSnapshot : ITextSnapshot
     public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingPoint(this, position, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode) => new MockTrackingSpan(this, span, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingSpan(this, span, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode) => new MockTrackingSpan(this, new Span(start, length), trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingSpan(this, new Span(start, length), trackingMode);
 
     /// <inheritdoc/>
     public void Write(TextWriter writer, Span span) => writer.Write(GetText(span));
@@ -330,16 +330,16 @@ internal class MockTextVersion(int versionNumber, INormalizedTextChangeCollectio
     public ITrackingPoint CreateTrackingPoint(int position, PointTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingPoint(null, position, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode) => new MockTrackingSpan(null, span, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(Span span, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingSpan(null, span, trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode) => new MockTrackingSpan(null, new Span(start, length), trackingMode);
 
     /// <inheritdoc/>
-    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => throw new NotImplementedException();
+    public ITrackingSpan CreateTrackingSpan(int start, int length, SpanTrackingMode trackingMode, TrackingFidelityMode trackingFidelity) => new MockTrackingSpan(null, new Span(start, length), trackingMode);
 
     /// <inheritdoc/>
     public ITrackingSpan CreateCustomTrackingSpan(Span span, TrackingFidelityMode trackingFidelity, object customState, CustomTrackToVersion behavior) => throw new NotImplementedException();
@@ -396,4 +396,63 @@ public class MockTrackingPoint(ITextSnapshot snapshot, int position, PointTracki
 
     /// <inheritdoc/>
     public int GetPosition(ITextVersion version) => position;
+}
+
+/// <summary>
+/// Mock implementation of ITrackingSpan for testing.
+/// </summary>
+/// <remarks>
+/// Initializes a new instance of the <see cref="MockTrackingSpan"/> class.
+/// </remarks>
+/// <param name="snapshot">The text snapshot.</param>
+/// <param name="span">The span to track.</param>
+/// <param name="trackingMode">The tracking mode.</param>
+internal class MockTrackingSpan(ITextSnapshot snapshot, Span span, SpanTrackingMode trackingMode) : ITrackingSpan
+{
+
+    /// <inheritdoc/>
+    public ITextBuffer TextBuffer => snapshot?.TextBuffer;
+
+    /// <inheritdoc/>
+    public SpanTrackingMode TrackingMode => trackingMode;
+
+    /// <inheritdoc/>
+    public TrackingFidelityMode TrackingFidelity => TrackingFidelityMode.Forward;
+
+    /// <inheritdoc/>
+    public SnapshotSpan GetSpan(ITextSnapshot snapshot)
+    {
+        // For testing purposes, return the original span
+        // In a real implementation, this would track changes across snapshots
+        var start = Math.Min(span.Start, snapshot.Length);
+        var end = Math.Min(span.End, snapshot.Length);
+        var length = Math.Max(0, end - start);
+        return new SnapshotSpan(snapshot, start, length);
+    }
+
+    /// <inheritdoc/>
+    public Span GetSpan(ITextVersion version)
+    {
+        // For testing purposes, return the original span
+        return span;
+    }
+
+    /// <inheritdoc/>
+    public SnapshotPoint GetStartPoint(ITextSnapshot snapshot)
+    {
+        return GetSpan(snapshot).Start;
+    }
+
+    /// <inheritdoc/>
+    public SnapshotPoint GetEndPoint(ITextSnapshot snapshot)
+    {
+        return GetSpan(snapshot).End;
+    }
+
+    /// <inheritdoc/>
+    public string GetText(ITextSnapshot snapshot)
+    {
+        var span = GetSpan(snapshot);
+        return snapshot.GetText(span);
+    }
 }

@@ -21,7 +21,7 @@ public class PositionalNavigationTests
             new TemplateProperty("UserName", 0, 8, PropertyType.Standard, 0, 1)
         }.ToList();
 
-        var source = new SerilogSuggestedActionsSource(null);
+        var source = new SerilogSuggestedActionsSource(null, null);
         var getArgumentIndexMethod = typeof(SerilogSuggestedActionsSource)
             .GetMethod("GetArgumentIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
@@ -75,7 +75,7 @@ public class PositionalNavigationTests
             new TemplateProperty("invalid", 0, 7, PropertyType.Positional, 0, 1)
         }.ToList();
 
-        var source = new SerilogSuggestedActionsSource(null);
+        var source = new SerilogSuggestedActionsSource(null, null);
         var getArgumentIndexMethod = typeof(SerilogSuggestedActionsSource)
             .GetMethod("GetArgumentIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 

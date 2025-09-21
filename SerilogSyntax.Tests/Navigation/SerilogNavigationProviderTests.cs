@@ -123,7 +123,7 @@ public class SerilogNavigationProviderTests
         var userIdStart = multiLineCode.IndexOf("{UserId}");
         var range = new SnapshotSpan(mockSnapshot, userIdStart + 1, 6); // Inside "UserId"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         
         // Act - Try to get suggested actions for navigation
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
@@ -148,7 +148,7 @@ public class SerilogNavigationProviderTests
         var departmentStart = multiLineCode.IndexOf("{Department}");
         var range = new SnapshotSpan(mockSnapshot, departmentStart + 1, 10); // Inside "Department"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -171,7 +171,7 @@ public class SerilogNavigationProviderTests
         var errorCodeStart = multiLineCode.IndexOf("{ErrorCode}");
         var range = new SnapshotSpan(mockSnapshot, errorCodeStart + 1, 9); // Inside "ErrorCode"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -193,7 +193,7 @@ public class SerilogNavigationProviderTests
         var amountStart = multiLineCode.IndexOf("{Amount:C}");
         var range = new SnapshotSpan(mockSnapshot, amountStart + 1, 6); // Inside "Amount"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -215,7 +215,7 @@ public class SerilogNavigationProviderTests
         var requestDataStart = multiLineCode.IndexOf("{@RequestData}");
         var range = new SnapshotSpan(mockSnapshot, requestDataStart + 2, 11); // Inside "RequestData"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -237,7 +237,7 @@ public class SerilogNavigationProviderTests
         var positionalStart = multiLineCode.IndexOf("{1}");
         var range = new SnapshotSpan(mockSnapshot, positionalStart + 1, 1); // Inside "1"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -258,7 +258,7 @@ public class SerilogNavigationProviderTests
         var customerStart = multiLineCode.IndexOf("{@Customer}");
         var range = new SnapshotSpan(mockSnapshot, customerStart + 2, 8); // Inside "Customer" (skip the {@)
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -298,7 +298,7 @@ public class SerilogNavigationProviderTests
         var userIdStart = multiLineCode.IndexOf("{UserId}");
         var range = new SnapshotSpan(mockSnapshot, userIdStart + 1, 6); // Inside "UserId"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions); // This should fail - no navigation appears
@@ -322,7 +322,7 @@ public class SerilogNavigationProviderTests
         var filePathStart = multiLineCode.IndexOf("{FilePath}");
         var range = new SnapshotSpan(mockSnapshot, filePathStart + 1, 8); // Inside "FilePath"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions); // This should fail - no navigation appears for {FilePath}
@@ -359,7 +359,7 @@ public class SerilogNavigationProviderTests
         var userIdStart = multiLineCode.IndexOf("{UserId}");
         var range = new SnapshotSpan(mockSnapshot, userIdStart + 1, 6); // Inside "UserId"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -396,7 +396,7 @@ public class SerilogNavigationProviderTests
         var orderStart = multiLineCode.IndexOf("{@Order}");
         var range = new SnapshotSpan(mockSnapshot, orderStart + 2, 5); // Inside "Order" (skip {@)
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions);
@@ -435,7 +435,7 @@ public class SerilogNavigationProviderTests
         var recordIdStart = multiLineCode.IndexOf("{RecordId}");
         var range = new SnapshotSpan(mockSnapshot, recordIdStart + 1, 8); // Inside "RecordId"
         
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
         
         Assert.NotEmpty(actions); // This should fail - no navigation appears
@@ -460,7 +460,7 @@ public class SerilogNavigationProviderTests
             
         var mockBuffer = new MockTextBuffer(multiLineCode);
         var mockSnapshot = new MockTextSnapshot(multiLineCode, mockBuffer, 1);
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         
         // Test navigation for {AppName} - this reportedly fails
         var appNameStart = multiLineCode.IndexOf("{AppName}");
@@ -508,7 +508,7 @@ public class SerilogNavigationProviderTests
             
         var mockBuffer = new MockTextBuffer(multiLineCode);
         var mockSnapshot = new MockTextSnapshot(multiLineCode, mockBuffer, 1);
-        var provider = new SerilogSuggestedActionsSource(null);
+        var provider = new SerilogSuggestedActionsSource(null, mockBuffer);
         
         // Test navigation for {AppName} - this reportedly fails
         var appNameStart = multiLineCode.IndexOf("{AppName}");
@@ -527,7 +527,79 @@ public class SerilogNavigationProviderTests
         
         // All should work, but currently only later ones do
         Assert.NotEmpty(appNameActions);
-        Assert.NotEmpty(versionActions); 
+        Assert.NotEmpty(versionActions);
         Assert.NotEmpty(environmentActions);
+    }
+
+    [Fact]
+    public void GetSuggestedActions_WideRangeFromVS_AllPropertiesShowUserNameBug()
+    {
+        // This test captures the EXACT bug: "all of the properties say the exact same thing -> Navigate to UserName argument"
+        // When VS passes a wide range, midpoint calculation always lands on UserName
+
+        // Arrange - exact scenario from user
+        var code = @"logger.LogInformation(""User {UserId} ({UserName}) placed {OrderCount} orders totaling {TotalAmount:C}"",
+    userId, userName, orderCount, totalAmount);";
+
+        var mockBuffer = MockTextBuffer.Create(code);
+        var mockTextView = new MockTextView(mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(mockTextView, mockBuffer);
+
+        // Simulate VS passing a wide range that covers multiple properties
+        // The midpoint of this range will land on UserName property
+        var rangeStart = code.IndexOf("{UserId}");
+        var rangeEnd = code.IndexOf("{OrderCount}") + 5; // Goes partway through OrderCount
+        var wideRange = new SnapshotSpan(mockBuffer.CurrentSnapshot, rangeStart, rangeEnd - rangeStart);
+
+        // Act - Get suggested actions with VS's wide range
+        var actions = provider.GetSuggestedActions(null, wideRange, CancellationToken.None);
+
+        // Assert
+        Assert.NotEmpty(actions);
+        var navigateAction = actions.First().Actions.First() as NavigateToArgumentAction;
+        Assert.NotNull(navigateAction);
+
+        // The bug: Because midpoint lands on UserName, it shows "Navigate to 'UserName' argument"
+        // even though the range covers multiple properties (UserId, UserName, OrderCount)
+        // This test should initially FAIL because it shows UserName instead of the property cursor is actually on
+        Assert.NotEqual("Navigate to 'UserName' argument", navigateAction.DisplayText);
+    }
+
+    [Fact]
+    public void GetSuggestedActions_VSPassesWideRangeFromLineStart_ShowsWrongProperty()
+    {
+        // This reproduces the EXACT bug: VS passes range from line start to cursor position
+        // When cursor is on {OrderCount}, the midpoint lands on {UserId}
+
+        var code = @"// Standard properties with multiple types
+logger.LogInformation(""User {UserId} ({UserName}) placed {OrderCount} orders totaling {TotalAmount:C}"",
+    userId, userName, orderCount, totalAmount);";
+
+        var mockBuffer = MockTextBuffer.Create(code);
+        var mockTextView = new MockTextView(mockBuffer);
+        var provider = new SerilogSuggestedActionsSource(mockTextView, mockBuffer);
+
+        // Find positions exactly as they appear in the screenshot scenario
+        var lineStart = code.IndexOf("logger.LogInformation");  // Position 44
+        var orderCountPos = code.IndexOf("OrderCount");          // Position 101 (inside the property name)
+
+        // VS passes a range from line start to cursor position when showing light bulb
+        // This wide range causes midpoint to land on UserId instead of OrderCount
+        // Range ends at position 101, which is inside "OrderCount"
+        var range = new SnapshotSpan(mockBuffer.CurrentSnapshot, lineStart, orderCountPos - lineStart);
+
+        // Act
+        var actions = provider.GetSuggestedActions(null, range, CancellationToken.None);
+
+        // Assert
+        Assert.NotEmpty(actions);
+        var actionSet = actions.First();
+        Assert.NotEmpty(actionSet.Actions);
+        var navigateAction = actionSet.Actions.First() as NavigateToArgumentAction;
+        Assert.NotNull(navigateAction);
+
+        // BUG: Shows "Navigate to 'UserId' argument" instead of "Navigate to 'OrderCount' argument"
+        // because midpoint calculation lands on UserId
+        Assert.Equal("Navigate to 'OrderCount' argument", navigateAction.DisplayText);
     }
 }

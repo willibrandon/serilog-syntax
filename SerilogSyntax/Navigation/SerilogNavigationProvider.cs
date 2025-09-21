@@ -41,19 +41,34 @@ internal class SerilogSuggestedActionsSourceProvider : ISuggestedActionsSourcePr
     {
         if (textBuffer == null || textView == null)
             return null;
-        
-        return new SerilogSuggestedActionsSource(textView);
+
+        return new SerilogSuggestedActionsSource(textView, textBuffer);
     }
 }
 
 /// <summary>
 /// Provides suggested actions for navigating from Serilog template properties to their arguments.
 /// </summary>
-internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedActionsSource
+internal class SerilogSuggestedActionsSource : ISuggestedActionsSource
 {
-    public event EventHandler<EventArgs> SuggestedActionsChanged { add { } remove { } }
+    private readonly ITextView textView;
+    private readonly ITextBuffer textBuffer;
+    private EventHandler<EventArgs> _suggestedActionsChanged;
+
+    public event EventHandler<EventArgs> SuggestedActionsChanged
+    {
+        add { _suggestedActionsChanged += value; }
+        remove { _suggestedActionsChanged -= value; }
+    }
 
     private readonly TemplateParser _parser = new();
+
+    public SerilogSuggestedActionsSource(ITextView textView, ITextBuffer textBuffer)
+    {
+        this.textView = textView;
+        this.textBuffer = textBuffer;
+    }
+
 
     /// <summary>
     /// Determines whether suggested actions are available at the given location.
@@ -70,7 +85,13 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         return await Task.Run(() =>
         {
             DiagnosticLogger.Log("=== HasSuggestedActionsAsync called ===");
-            var triggerPoint = range.Start;
+            DiagnosticLogger.Log($"Range: {range.Start.Position} to {range.End.Position}");
+
+            // Use the midpoint of the range if it has a span, otherwise use the start
+            var triggerPoint = range.Length > 0
+                ? new SnapshotPoint(range.Snapshot, range.Start.Position + range.Length / 2)
+                : range.Start;
+
             var line = triggerPoint.GetContainingLine();
             var lineText = line.GetText();
             var lineStart = line.Start.Position;
@@ -155,11 +176,22 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
             // Parse template to find properties
             var properties = _parser.Parse(template).ToList();
             
-            // Find which property the cursor is on
-            var cursorPosInTemplate = triggerPoint.Position - templateStartPosition;
-            var property = properties.FirstOrDefault(p => 
-                cursorPosInTemplate >= p.BraceStartIndex && 
-                cursorPosInTemplate <= p.BraceEndIndex);
+            // Find which property to navigate to based on range, not just cursor position
+            // If range spans multiple properties, use the first property that intersects with the range
+            var rangeStartInTemplate = range.Start.Position - templateStartPosition;
+            var rangeEndInTemplate = range.End.Position - templateStartPosition;
+
+            // First try to find a property that the range start intersects with
+            var property = properties.FirstOrDefault(p =>
+                rangeStartInTemplate >= p.BraceStartIndex &&
+                rangeStartInTemplate <= p.BraceEndIndex);
+
+            // If range start doesn't hit a property, find any property that intersects with the range
+            if (property == null)
+            {
+                property = properties.FirstOrDefault(p =>
+                    !(rangeEndInTemplate <= p.BraceStartIndex || rangeStartInTemplate > p.BraceEndIndex));
+            }
 
             return property != null;
         }, cancellationToken);
@@ -177,10 +209,43 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         SnapshotSpan range,
         CancellationToken cancellationToken)
     {
+        DiagnosticLogger.Log("=== GetSuggestedActions called ===");
+        DiagnosticLogger.Log($"Range: {range.Start.Position} to {range.End.Position}");
+
+        // Use the actual caret position if available, otherwise use range end
+        // This fixes the bug where VS passes a wide range from line start and midpoint lands on wrong property
         var triggerPoint = range.Start;
+
+        // Try to use the caret position if available
+        if (textView?.Caret != null && textView.Caret.Position.BufferPosition.Snapshot == range.Snapshot)
+        {
+            var caretPos = textView.Caret.Position.BufferPosition;
+            // Make sure caret is within the provided range
+            if (caretPos.Position >= range.Start.Position && caretPos.Position <= range.End.Position)
+            {
+                triggerPoint = caretPos;
+                DiagnosticLogger.Log($"Using caret position: {caretPos.Position}");
+            }
+            else
+            {
+                // Caret is outside range, use range end as that's likely where cursor is
+                triggerPoint = range.End;
+                DiagnosticLogger.Log($"Caret outside range, using range end: {range.End.Position}");
+            }
+        }
+        else
+        {
+            // No caret available (e.g., in tests), use range end as best guess
+            triggerPoint = range.End;
+            DiagnosticLogger.Log($"No caret available, using range end: {range.End.Position}");
+        }
+
         var line = triggerPoint.GetContainingLine();
         var lineText = line.GetText();
         var lineStart = line.Start.Position;
+
+        DiagnosticLogger.Log($"Line text: '{lineText}'");
+        DiagnosticLogger.Log($"Trigger position: {triggerPoint.Position}");
 
         // Check if we're in a Serilog call
         var serilogMatch = SerilogCallDetector.FindSerilogCall(lineText);
@@ -253,12 +318,27 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
 
         // Parse template to find properties
         var properties = _parser.Parse(template).ToList();
-        
-        // Find which property the cursor is on
-        var cursorPosInTemplate = triggerPoint.Position - templateStartPosition;
-        var property = properties.FirstOrDefault(p => 
-            cursorPosInTemplate >= p.BraceStartIndex && 
-            cursorPosInTemplate <= p.BraceEndIndex);
+
+        // Find which property to navigate to based on the trigger point (cursor position)
+        // This fixes the bug where wide ranges would select the wrong property
+        var triggerPointInTemplate = triggerPoint.Position - templateStartPosition;
+
+        DiagnosticLogger.Log($"Trigger point in template: {triggerPointInTemplate}");
+        DiagnosticLogger.Log($"Template: '{template}'");
+
+        // Find the property that contains the trigger point
+        var property = properties.FirstOrDefault(p =>
+            triggerPointInTemplate >= p.BraceStartIndex &&
+            triggerPointInTemplate <= p.BraceEndIndex);
+
+        if (property != null)
+        {
+            DiagnosticLogger.Log($"Found property at trigger point: {property.Name} ({property.BraceStartIndex}-{property.BraceEndIndex})");
+        }
+        else
+        {
+            DiagnosticLogger.Log($"No property found at trigger point {triggerPointInTemplate}");
+        }
 
         if (property == null)
             yield break;
@@ -306,7 +386,17 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         {
             // For named properties, find their position among all named properties
             var namedProperties = properties.Where(p => p.Type != PropertyType.Positional).ToList();
-            return namedProperties.IndexOf(targetProperty);
+
+            // Find the index by matching the property position and name, not object reference
+            for (int i = 0; i < namedProperties.Count; i++)
+            {
+                if (namedProperties[i].BraceStartIndex == targetProperty.BraceStartIndex &&
+                    namedProperties[i].Name == targetProperty.Name)
+                {
+                    return i;
+                }
+            }
+            return -1;
         }
     }
 
@@ -934,8 +1024,9 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
 
     public bool TryGetTelemetryId(out Guid telemetryId)
     {
-        telemetryId = Guid.Empty;
-        return false;
+        // Provide a unique telemetry ID for this actions source
+        telemetryId = new Guid("8F3E7A2B-9C4D-5E6F-A7B8-C9D0E1F2A3B4");
+        return true;
     }
 }
 
@@ -951,9 +1042,9 @@ internal class NavigateToArgumentAction(
 {
     internal int ArgumentStart => position;
     internal int ArgumentLength => length;
-    
-    public string DisplayText => propertyType == PropertyType.Positional 
-        ? $"Navigate to argument at position {propertyName}" 
+
+    public string DisplayText => propertyType == PropertyType.Positional
+        ? $"Navigate to argument at position {propertyName}"
         : $"Navigate to '{propertyName}' argument";
 
     public string IconAutomationText => null;
@@ -980,7 +1071,7 @@ internal class NavigateToArgumentAction(
     {
         var snapshot = textView.TextBuffer.CurrentSnapshot;
         var span = new SnapshotSpan(snapshot, position, length);
-        
+
         textView.Caret.MoveTo(span.Start);
         textView.ViewScroller.EnsureSpanVisible(span);
         textView.Selection.Select(span, false);

@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.Text.Classification;
+using Microsoft.VisualStudio.Text.Formatting;
 using Microsoft.VisualStudio.Utilities;
 using System.ComponentModel.Composition;
 using System.Windows.Media;
@@ -104,21 +105,22 @@ internal sealed class SerilogAlignmentFormat(SerilogThemeColors themeColors)
 }
 
 /// <summary>
-/// Defines the visual format for brace matching highlight in Serilog templates.
+/// Defines the visual format for property-argument highlighting in Serilog templates.
 /// </summary>
 [Export(typeof(EditorFormatDefinition))]
-[Name("bracehighlight")]
+[Name("PropertyArgumentHighlight")]
 [UserVisible(true)]
-internal sealed class SerilogBraceHighlightFormat : MarkerFormatDefinition
+internal sealed class PropertyArgumentHighlightFormat : MarkerFormatDefinition
 {
-    public SerilogBraceHighlightFormat()
+    public PropertyArgumentHighlightFormat()
     {
-        DisplayName = "Serilog Brace Highlight";
-        // Don't use a solid background - just use a border for subtle highlighting
-        // This follows VS's built-in brace matching approach
-        ForegroundColor = Color.FromRgb(0x66, 0x66, 0x66); // Dark gray border
+        DisplayName = "Serilog Property-Argument Highlight";
+        // Match VS Code's editor.wordHighlightBackground style
+        // In VS dark theme, word highlights typically use a subtle blue-gray
+        BackgroundColor = Color.FromArgb(40, 90, 90, 90); // Subtle gray background similar to word highlight
+        Border = null; // No border, using background fill like VS Code
         BackgroundCustomizable = true;
-        ForegroundCustomizable = true;
+        ForegroundCustomizable = false;
         ZOrder = 5;
     }
 }

@@ -145,7 +145,7 @@ The deploy script updates your extension in-place without uninstalling, which is
 - The extension targets .NET Framework 4.7.2
 - Uses Visual Studio SDK v17.0.32112.339
 - Configured for Visual Studio Community 2022 (17.0-18.0)
-- Fully functional with syntax highlighting, navigation, and brace matching
+- Fully functional with syntax highlighting, navigation, and property-argument highlighting
 - Supports C# 11 raw string literals ("""...""")
 
 ## Implementation Overview
@@ -156,11 +156,11 @@ This extension provides syntax highlighting and navigation for Serilog message t
 - **Syntax highlighting** of properties within Serilog message template strings
 - **Syntax highlighting** for Serilog.Expressions filter syntax and expression templates
 - **Navigation** support (Go to Definition) between template properties and arguments
-- **Brace matching** for template property delimiters and expression templates
+- **Property-argument highlighting** that visually connects template properties with their corresponding arguments
 
 ### Technical Stack
 - **Roslyn Classification API** - For syntax highlighting via `IClassifier`
-- **Roslyn Tagging API** - For brace matching via `ITagger<TextMarkerTag>`
+- **Roslyn Tagging API** - For property-argument highlighting via `ITagger<TextMarkerTag>`
 - **Visual Studio Editor API** - For navigation features
 - **MEF (Managed Extensibility Framework)** - For VS integration
 
@@ -193,7 +193,7 @@ The extension includes these components:
 2. **Classification/SerilogClassifier.cs** - Implements `IClassifier` for syntax highlighting
 3. **Classification/SerilogClassifierProvider.cs** - MEF export for classifier
 4. **Navigation/SerilogNavigationProvider.cs** - Navigation from properties to arguments via light bulb
-5. **Tagging/SerilogBraceMatcher.cs** - Implements `ITagger<TextMarkerTag>` for brace matching
+5. **Tagging/PropertyArgumentHighlighter.cs** - Implements `ITagger<TextMarkerTag>` for property-argument highlighting
 6. **Utilities/SerilogCallDetector.cs** - Centralized Serilog call detection logic
 7. **Utilities/LruCache.cs** - Thread-safe LRU cache for parsed templates
 

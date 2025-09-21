@@ -89,7 +89,7 @@ Open `Program.cs` in Visual Studio with the Serilog Syntax extension installed t
 - **Teal** for property paths in expressions
 
 ### Interactive Features
-- **Brace matching** when cursor is on `{` or `}`
+- **Property-argument highlighting** when cursor is on a property or argument
 - **Light bulb navigation** from properties to arguments
 - **Immediate highlighting** as you type (before closing quotes)
 - **Multi-line support** for verbatim and raw strings
