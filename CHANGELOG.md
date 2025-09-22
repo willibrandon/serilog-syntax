@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2025-09-21
+
+### Fixed
+- Added ESC key dismissal for property-argument highlighting
+  - Press ESC to temporarily dismiss property-argument highlights
+  - Highlights automatically restore when cursor moves to a new position
+  - Consistent with brace matching ESC dismissal behavior
+  - Uses Visual Studio command handler chain for proper key handling
+
 ## [0.7.0] - 2025-09-21
 
 ### Added

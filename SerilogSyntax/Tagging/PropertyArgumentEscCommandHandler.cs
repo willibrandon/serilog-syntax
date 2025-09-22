@@ -6,22 +6,22 @@ using System.ComponentModel.Composition;
 namespace SerilogSyntax.Tagging
 {
     /// <summary>
-    /// Handles ESC to dismiss the current Serilog brace highlight.
+    /// Handles ESC to dismiss the property-argument highlights.
     /// Participates in the editor command chain.
     /// </summary>
     [Export(typeof(ICommandHandler))]
-    [Name("SerilogBraceEscHandler")]
+    [Name("PropertyArgumentEscHandler")]
     [ContentType("CSharp")]
-    internal sealed class SerilogBraceEscCommandHandler
+    internal sealed class PropertyArgumentEscCommandHandler
         : IChainedCommandHandler<EscapeKeyCommandArgs>
     {
         /// <summary>
         /// Gets the display name of the command handler.
         /// </summary>
-        public string DisplayName => "Serilog Brace ESC Dismissal";
+        public string DisplayName => "Property-Argument ESC Dismissal";
 
         /// <summary>
-        /// Executes the ESC command, dismissing brace highlights if applicable.
+        /// Executes the ESC command, dismissing property-argument highlights if applicable.
         /// </summary>
         /// <param name="args">The ESC key command arguments.</param>
         /// <param name="nextHandler">The next handler in the command chain.</param>
@@ -29,10 +29,10 @@ namespace SerilogSyntax.Tagging
         public void ExecuteCommand(EscapeKeyCommandArgs args, System.Action nextHandler, CommandExecutionContext context)
         {
             var view = args.TextView;
-            var state = SerilogBraceHighlightState.GetOrCreate(view);
+            var state = PropertyArgumentHighlightState.GetOrCreate(view);
 
             // Only handle ESC if we actually dismiss something; otherwise, pass through.
-            bool handled = state.DismissCurrentPair();
+            bool handled = state.Dismiss();
             if (!handled)
                 nextHandler();
         }

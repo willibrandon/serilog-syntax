@@ -1016,8 +1016,8 @@ catch (FileNotFoundException ex)
         cursorPosition = text.IndexOf("{@l:");
         view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, cursorPosition));
 
-        tags = highlighter.GetTags(new NormalizedSnapshotSpanCollection(
-            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+        tags = [.. highlighter.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length)))];
 
         Assert.Empty(tags);
 
@@ -1025,8 +1025,8 @@ catch (FileNotFoundException ex)
         cursorPosition = text.IndexOf("{@m}");
         view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, cursorPosition));
 
-        tags = highlighter.GetTags(new NormalizedSnapshotSpanCollection(
-            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+        tags = [.. highlighter.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length)))];
 
         Assert.Empty(tags);
     }

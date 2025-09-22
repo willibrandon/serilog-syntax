@@ -25,6 +25,7 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
     private SnapshotPoint? _currentChar;
     private readonly List<ITagSpan<TextMarkerTag>> _currentTags = [];
     private bool _disposed;
+    private readonly PropertyArgumentHighlightState _state;
 
     public event EventHandler<SnapshotSpanEventArgs> TagsChanged;
 
@@ -34,6 +35,10 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
 
         _currentChar = view.Caret.Position.Point.GetPoint(buffer, view.Caret.Position.Affinity);
+
+        // Set up state tracking for ESC dismissal
+        _state = PropertyArgumentHighlightState.GetOrCreate(_view);
+        _state.StateChanged += OnStateChanged;
 
         _view.Caret.PositionChanged += CaretPositionChanged;
         _view.LayoutChanged += ViewLayoutChanged;
@@ -46,6 +51,14 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
     {
         if (e.NewSnapshot != e.OldSnapshot)
             UpdateAtCaretPosition(_view.Caret.Position);
+    }
+
+    private void OnStateChanged(object sender, EventArgs e)
+    {
+        // When state changes (ESC dismiss/restore), refresh tags
+        var snapshot = _buffer.CurrentSnapshot;
+        var fullSpan = new SnapshotSpan(snapshot, 0, snapshot.Length);
+        TagsChanged?.Invoke(this, new SnapshotSpanEventArgs(fullSpan));
     }
 
     private void UpdateAtCaretPosition(CaretPosition caretPosition)
@@ -533,7 +546,7 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
 
     public IEnumerable<ITagSpan<TextMarkerTag>> GetTags(NormalizedSnapshotSpanCollection spans)
     {
-        if (_disposed || spans.Count == 0)
+        if (_disposed || spans.Count == 0 || _state?.IsDismissed == true)
             return [];
 
         return _currentTags.Where(tag => spans.Any(span => span.IntersectsWith(tag.Span)));
@@ -571,6 +584,11 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
     {
         if (_disposed) return;
         _disposed = true;
+
+        if (_state != null)
+        {
+            _state.StateChanged -= OnStateChanged;
+        }
 
         if (_view != null)
         {
