@@ -123,6 +123,26 @@ internal sealed class SerilogBraceHighlightFormat : MarkerFormatDefinition
     }
 }
 
+/// <summary>
+/// Defines the visual format for property-argument connection highlights in Serilog templates.
+/// </summary>
+[Export(typeof(EditorFormatDefinition))]
+[Name("serilog.property.argument.highlight")]
+[UserVisible(true)]
+internal sealed class SerilogPropertyArgumentHighlightFormat : MarkerFormatDefinition
+{
+    public SerilogPropertyArgumentHighlightFormat()
+    {
+        DisplayName = "Serilog Property-Argument Highlight";
+        // Use a subtle background fill to highlight property-argument connections
+        // Colors chosen to work well with both light and dark themes
+        BackgroundColor = Color.FromArgb(40, 0x00, 0x7A, 0xCC); // Semi-transparent blue
+        BackgroundCustomizable = true;
+        ForegroundCustomizable = false;
+        ZOrder = 4; // Lower than brace highlighting to avoid conflicts
+    }
+}
+
 // Expression syntax format definitions
 
 /// <summary>

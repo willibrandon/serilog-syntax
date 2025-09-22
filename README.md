@@ -49,6 +49,13 @@ A Visual Studio 2022 extension that provides syntax highlighting, brace matching
 - **Navigate to argument** - jump from template properties to their corresponding arguments
 - Click the light bulb and select "Navigate to 'PropertyName' argument"
 
+### 🔦 Property-Argument Highlighting
+- **Interactive highlighting** of property-argument connections
+- When cursor is on a template property (e.g., `{UserId}`), both the property and its corresponding argument are highlighted
+- When cursor is on an argument, both the argument and its template property are highlighted
+- Works across all string literal types (regular, verbatim `@"..."`, raw `"""..."""`)
+- Supports complex scenarios including multi-line templates, collection expressions, and LogError with exception parameters
+
 ### 🔍 Brace Matching
 - Highlight matching braces when cursor is positioned on `{` or `}`
 - Visual indication of brace pairs in complex templates
@@ -246,6 +253,7 @@ Key components:
 - `SerilogClassifier` - Handles syntax highlighting with smart cache invalidation
 - `SerilogBraceMatcher` - Provides brace matching
 - `SerilogNavigationProvider` - Enables property-to-argument navigation
+- `PropertyArgumentHighlighter` - Highlights property-argument connections on cursor position
 - `SerilogCallDetector` - Optimized Serilog call detection with pre-check optimization
 - `SerilogThemeColors` - Theme-aware color management with WCAG AA compliance
 - `TemplateParser` - Parses Serilog message templates

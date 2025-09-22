@@ -416,8 +416,20 @@ internal sealed class SerilogBraceMatcher : ITagger<TextMarkerTag>, IDisposable
         // Check if we're in an expression template context
         bool inExpressionTemplate = IsInsideExpressionTemplate(currentChar);
 
-        // For single-line strings, use existing logic
-        if (!inMultiLineString && !inExpressionTemplate && !IsSerilogCall(lineText))
+        // For single-line strings, check if we're in a Serilog context
+        bool inSerilogContext = IsSerilogCall(lineText);
+
+        // If not found on current line, check previous line for configuration patterns
+        // Use SerilogCallDetector for more robust detection
+        if (!inSerilogContext && currentLine.LineNumber > 0)
+        {
+            var prevLine = snapshot.GetLineFromLineNumber(currentLine.LineNumber - 1);
+            var prevText = prevLine.GetText();
+            // Use the centralized detector which has more precise pattern matching
+            inSerilogContext = SerilogCallDetector.IsSerilogCall(prevText);
+        }
+
+        if (!inMultiLineString && !inExpressionTemplate && !inSerilogContext)
             yield break;
 
         var charAtCaret = currentChar.GetChar();

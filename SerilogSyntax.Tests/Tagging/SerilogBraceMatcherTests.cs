@@ -30,6 +30,54 @@ public class SerilogBraceMatcherTests
     }
 
     [Fact]
+    public void BraceMatching_WriteTo_Console_OutputTemplate()
+    {
+        // Test brace matching in WriteTo.Console outputTemplate parameter
+        var text = @".WriteTo.Console(outputTemplate:
+        ""[{Timestamp:HH:mm:ss} {Level:u3} ({SourceContext})] {Message:lj} (first item is {FirstItem}){NewLine}{Exception}"")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position on opening brace of {Timestamp:HH:mm:ss}
+        var timestampOpenPos = text.IndexOf("{Timestamp");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, timestampOpenPos));
+
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // Should highlight the opening and closing brace of {Timestamp:HH:mm:ss}
+        Assert.Equal(2, tags.Count);
+        var timestampClosePos = text.IndexOf("}", timestampOpenPos);
+        Assert.Contains(tags, t => t.Span.Start.Position == timestampOpenPos);
+        Assert.Contains(tags, t => t.Span.Start.Position == timestampClosePos);
+    }
+
+    [Fact]
+    public void BraceMatching_WriteTo_Console_OutputTemplate_ClosingBrace()
+    {
+        // Test brace matching when cursor is on closing brace
+        var text = @".WriteTo.Console(outputTemplate:
+        ""[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}"")";
+        var buffer = new MockTextBuffer(text);
+        var view = new MockTextView(buffer);
+        var matcher = new SerilogBraceMatcher(view, buffer);
+
+        // Position on closing brace of {Level:u3}
+        var levelClosePos = text.IndexOf("{Level:u3}") + "{Level:u3}".Length - 1;
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, levelClosePos));
+
+        var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // Should highlight the opening and closing brace of {Level:u3}
+        Assert.Equal(2, tags.Count);
+        var levelOpenPos = text.IndexOf("{Level");
+        Assert.Contains(tags, t => t.Span.Start.Position == levelOpenPos);
+        Assert.Contains(tags, t => t.Span.Start.Position == levelClosePos);
+    }
+
+    [Fact]
     public void BraceMatching_MultipleProperties_OnlyHighlightsCurrentPair()
     {
         var text = "Log.Information(\"User {Name} logged in at {Timestamp}\");";
@@ -40,7 +88,7 @@ public class SerilogBraceMatcherTests
         // Position on first property's opening brace
         var firstOpenPos = text.IndexOf("{Name");
         view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, firstOpenPos));
-        
+
         var tags = matcher.GetTags(new NormalizedSnapshotSpanCollection(
             new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
 

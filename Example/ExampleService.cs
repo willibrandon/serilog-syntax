@@ -2,7 +2,7 @@
 
 public class ExampleService(ILogger<ExampleService> logger)
 {
-    private static readonly string[] consoleLoggerScopes = [nameof(RunExamplesAsync), nameof(ConsoleLoggerEmulationExample)];
+    private static readonly string[] ConsoleLoggerScopes = [nameof(RunExamplesAsync), nameof(ConsoleLoggerEmulationExample)];
 
     public async Task RunExamplesAsync()
     {
@@ -512,7 +512,7 @@ Timestamp: {Timestamp:yyyy-MM-dd HH:mm:ss}
         program.Information("Host listening at {ListenUri}", "https://hello-world.local");
 
         program
-            .ForContext("Scope", consoleLoggerScopes)
+            .ForContext("Scope", ConsoleLoggerScopes)
             .Information("HTTP {Method} {Path} responded {StatusCode} in {Elapsed:0.000} ms", "GET", "/api/hello", 200, 1.23);
 
         program.Warning("We've reached the end of the line");
