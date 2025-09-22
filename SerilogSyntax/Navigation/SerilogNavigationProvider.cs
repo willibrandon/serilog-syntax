@@ -70,13 +70,27 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         return await Task.Run(() =>
         {
             DiagnosticLogger.Log("=== HasSuggestedActionsAsync called ===");
+
+            // VS seems to be passing the line span instead of cursor span
+            // Use the caret position if available, otherwise fall back to range
             var triggerPoint = range.Start;
+            if (textView != null && textView.Caret != null)
+            {
+                triggerPoint = textView.Caret.Position.BufferPosition;
+                DiagnosticLogger.Log($"Using caret position: {triggerPoint.Position}");
+            }
+            else
+            {
+                DiagnosticLogger.Log($"Using range start: {triggerPoint.Position}");
+            }
+
             var line = triggerPoint.GetContainingLine();
             var lineText = line.GetText();
             var lineStart = line.Start.Position;
 
             DiagnosticLogger.Log($"Line text: '{lineText}'");
             DiagnosticLogger.Log($"Trigger position: {triggerPoint.Position}");
+            DiagnosticLogger.Log($"Line start position: {lineStart}");
 
             // Check if we're in a Serilog call
             var serilogMatch = SerilogCallDetector.FindSerilogCall(lineText);
@@ -102,11 +116,12 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
             string template;
             int templateStartPosition;
             int templateEndPosition;
-            
+
             if (serilogCallLine == line)
             {
                 // Same-line scenario: template starts on the same line as the Serilog call
                 var templateMatch = FindTemplateString(lineText, serilogMatch.Index + serilogMatch.Length);
+                DiagnosticLogger.Log($"FindTemplateString result: {(templateMatch.HasValue ? $"Found at [{templateMatch.Value.Item1}, {templateMatch.Value.Item2}]" : "Not found")}");
                 if (!templateMatch.HasValue)
                 {
                     // No complete template found on this line - check if it's a multi-line template starting here
@@ -129,11 +144,18 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
                     template = lineText.Substring(templateStart, templateEnd - templateStart);
                     templateStartPosition = lineStart + templateStart;
                     templateEndPosition = lineStart + templateEnd;
-                    
+
+                    DiagnosticLogger.Log($"Template found: '{template}'");
+                    DiagnosticLogger.Log($"Template position: [{templateStartPosition}, {templateEndPosition}]");
+
                     // Check if cursor is within template
                     var positionInLine = triggerPoint.Position - lineStart;
+                    DiagnosticLogger.Log($"Position in line: {positionInLine}, template range in line: [{templateStart}, {templateEnd}]");
                     if (positionInLine < templateStart || positionInLine > templateEnd)
+                    {
+                        DiagnosticLogger.Log("Cursor is outside template bounds");
                         return false;
+                    }
                 }
             }
             else
@@ -154,12 +176,28 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
 
             // Parse template to find properties
             var properties = _parser.Parse(template).ToList();
-            
+            DiagnosticLogger.Log($"Found {properties.Count} properties in template");
+
             // Find which property the cursor is on
             var cursorPosInTemplate = triggerPoint.Position - templateStartPosition;
-            var property = properties.FirstOrDefault(p => 
-                cursorPosInTemplate >= p.BraceStartIndex && 
+            DiagnosticLogger.Log($"Cursor position in template: {cursorPosInTemplate}");
+
+            var property = properties.FirstOrDefault(p =>
+                cursorPosInTemplate >= p.BraceStartIndex &&
                 cursorPosInTemplate <= p.BraceEndIndex);
+
+            if (property != null)
+            {
+                DiagnosticLogger.Log($"Found property: {property.Name} at [{property.BraceStartIndex}, {property.BraceEndIndex}]");
+            }
+            else
+            {
+                DiagnosticLogger.Log("No property found at cursor position");
+                foreach (var p in properties)
+                {
+                    DiagnosticLogger.Log($"  Property '{p.Name}' at [{p.BraceStartIndex}, {p.BraceEndIndex}]");
+                }
+            }
 
             return property != null;
         }, cancellationToken);
@@ -177,7 +215,14 @@ internal class SerilogSuggestedActionsSource(ITextView textView) : ISuggestedAct
         SnapshotSpan range,
         CancellationToken cancellationToken)
     {
+        // VS seems to be passing the line span instead of cursor span
+        // Use the caret position if available, otherwise fall back to range
         var triggerPoint = range.Start;
+        if (textView != null && textView.Caret != null)
+        {
+            triggerPoint = textView.Caret.Position.BufferPosition;
+        }
+
         var line = triggerPoint.GetContainingLine();
         var lineText = line.GetText();
         var lineStart = line.Start.Position;

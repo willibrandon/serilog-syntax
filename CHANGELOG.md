@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2025-09-21
+
+### Fixed
+- Navigation to arguments now properly uses cursor position
+  - Visual Studio was passing line spans instead of cursor position to ISuggestedActionsSource
+  - Navigation provider now correctly uses ITextView.Caret.Position for accurate cursor detection
+  - Fixes issue where navigation actions would not appear when cursor was on template properties
+
 ## [0.7.1] - 2025-09-21
 
 ### Fixed
@@ -322,6 +330,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable colors via Tools > Options > Environment > Fonts and Colors
 - Real-time highlighting as you type
 
+[0.7.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.7.2
+[0.7.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.7.1
+[0.7.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.7.0
+[0.6.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.6.2
 [0.6.1]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.6.1
 [0.6.0]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.6.0
 [0.5.2]: https://github.com/willibrandon/serilog-syntax/releases/tag/v0.5.2
