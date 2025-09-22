@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Tagging;
 using SerilogSyntax.Parsing;
+using SerilogSyntax.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,9 +15,13 @@ namespace SerilogSyntax.Tagging;
 /// </summary>
 internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDisposable
 {
+    // Note: We use SerilogCallDetector for finding Serilog calls and StringLiteralParser for string extraction
+    // to avoid duplicating regex patterns and parsing logic
+
     private readonly ITextView _view;
     private readonly ITextBuffer _buffer;
     private readonly TemplateParser _parser = new();
+    private readonly StringLiteralParser _stringParser = new();
     private SnapshotPoint? _currentChar;
     private readonly List<ITagSpan<TextMarkerTag>> _currentTags = [];
     private bool _disposed;
@@ -245,10 +250,8 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
         var snapshot = caretPoint.Snapshot;
         var text = snapshot.GetText();
 
-        // Use regex to find all Serilog calls
-        // This matches both direct calls (logger.Information) and chained calls (.Information after ForContext)
-        var pattern = @"(?:(?:_?logger|Log|log)\.(?:LogVerbose|LogDebug|LogInformation|LogWarning|LogError|LogCritical|LogFatal|Verbose|Debug|Information|Warning|Error|Critical|Fatal|Write|BeginScope)|\.(?:LogVerbose|LogDebug|LogInformation|LogWarning|LogError|LogCritical|LogFatal|Verbose|Debug|Information|Warning|Error|Critical|Fatal|Write))\s*\(";
-        var methodMatches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+        // Use SerilogCallDetector to find all Serilog calls to avoid duplicating regex patterns
+        var methodMatches = SerilogCallDetector.FindAllSerilogCalls(text);
 
         foreach (Match methodMatch in methodMatches)
         {
@@ -283,6 +286,10 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
 
             // Extract the call content
             var callContent = text.Substring(methodEnd, callEnd - methodEnd);
+
+            // Skip ExpressionTemplate calls - they don't have argument mapping
+            if (methodMatch.Value.Contains("ExpressionTemplate"))
+                continue;
 
             // Handle LogError special case (first parameter might be exception)
             var hasException = methodMatch.Value.Contains("LogError") && HasExceptionFirstParam(callContent);
@@ -344,7 +351,7 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
         if (trimmedContent.StartsWith("\"") ||
             trimmedContent.StartsWith("@\"") ||
             trimmedContent.StartsWith("$\"") ||
-            Regex.IsMatch(trimmedContent, @"^@?(""{3,})"))  // Raw string literals
+            (trimmedContent.Length > 2 && trimmedContent[0] == '\"' && trimmedContent[1] == '\"' && trimmedContent[2] == '\"'))  // Raw string literals
         {
             // First parameter is a string template, no exception
             return false;
@@ -356,63 +363,83 @@ internal sealed class PropertyArgumentHighlighter : ITagger<TextMarkerTag>, IDis
 
     private TemplateStringInfo ExtractTemplate(string callContent)
     {
-        // Handle different string literal formats
-        int start = -1;
-        int end = -1;
-        string template = null;
+        // Find the first string literal in the call content
+        int searchPos = 0;
 
-        // Try raw string literal (""" or more quotes for custom delimiters)
-        // Match 3 or more quotes at the start and end
-        var rawMatch = Regex.Match(callContent, @"@?(""{3,})([\s\S]*?)\1");
-        if (rawMatch.Success)
+        // Skip whitespace at the beginning
+        while (searchPos < callContent.Length && char.IsWhiteSpace(callContent[searchPos]))
+            searchPos++;
+
+        if (searchPos >= callContent.Length)
+            return null;
+
+        // Try to parse a string literal using StringLiteralParser
+        if (_stringParser.TryParseStringLiteral(callContent, searchPos, out var result))
         {
-            // For raw string literals, the template content starts after the opening quotes
-            var quoteDelimiter = rawMatch.Groups[1].Value;
-            var quoteCount = quoteDelimiter.Length;
-            start = rawMatch.Index + quoteCount;
-            template = rawMatch.Groups[2].Value;
-            end = rawMatch.Index + rawMatch.Length;
-        }
-        else
-        {
-            // Try verbatim string (@")
-            var verbatimMatch = Regex.Match(callContent, @"@""([^""]*(?:""""[^""]*)*)""");
-            if (verbatimMatch.Success)
+            // Determine if it's a verbatim string
+            bool isVerbatim = searchPos < callContent.Length - 1 &&
+                              callContent[searchPos] == '@' &&
+                              callContent[searchPos + 1] == '"';
+
+            // For verbatim strings, we need to store the original content with "" for position mapping
+            if (isVerbatim)
             {
-                start = verbatimMatch.Index + 2; // Skip @"
-                template = verbatimMatch.Groups[1].Value.Replace("\"\"", "\"");
-                end = verbatimMatch.Index + verbatimMatch.Length;
+                // Extract the original content with escaped quotes intact
+                var originalContent = callContent.Substring(result.Start + 2, result.End - result.Start - 2);
+                var cleanedContent = originalContent.Replace("\"\"", "\"");
 
-                // For verbatim strings, store the original for position adjustment
                 return new TemplateStringInfo
                 {
-                    Template = template,
-                    RelativeStart = start,
-                    RelativeEnd = end,
-                    OriginalTemplate = verbatimMatch.Groups[1].Value,
+                    Template = cleanedContent,
+                    RelativeStart = result.Start + 2, // Skip @"
+                    RelativeEnd = result.End + 1,
+                    OriginalTemplate = originalContent,
                     IsVerbatimString = true
                 };
             }
-            else
+
+            // For raw strings, check quote count
+            int quoteCount = 0;
+            if (callContent[searchPos] == '"')
             {
-                // Try regular string
-                var regularMatch = Regex.Match(callContent, @"""([^""\\]*(?:\\.[^""\\]*)*)""");
-                if (regularMatch.Success)
+                int pos = searchPos;
+                while (pos < callContent.Length && callContent[pos] == '"')
                 {
-                    start = regularMatch.Index + 1; // Skip opening quote
-                    template = Regex.Unescape(regularMatch.Groups[1].Value);
-                    end = regularMatch.Index + regularMatch.Length;
+                    quoteCount++;
+                    pos++;
                 }
             }
-        }
 
-        if (template != null)
-        {
+            // For raw strings (3+ quotes), adjust start position
+            if (quoteCount >= 3)
+            {
+                return new TemplateStringInfo
+                {
+                    Template = result.Content,
+                    RelativeStart = result.Start + quoteCount,
+                    RelativeEnd = result.End + 1
+                };
+            }
+
+            // For regular strings, unescape the content
+            string unescapedContent = result.Content;
+            if (quoteCount == 1) // Regular string with escape sequences
+            {
+                try
+                {
+                    unescapedContent = Regex.Unescape(result.Content);
+                }
+                catch
+                {
+                    // If unescaping fails, use content as-is
+                }
+            }
+
             return new TemplateStringInfo
             {
-                Template = template,
-                RelativeStart = start,
-                RelativeEnd = end
+                Template = unescapedContent,
+                RelativeStart = result.Start + 1, // Skip opening quote
+                RelativeEnd = result.End + 1
             };
         }
 

@@ -991,4 +991,43 @@ catch (FileNotFoundException ex)
         // Assert
         Assert.Equal(2, tags.Count); // Should highlight items.Count() and {Count}
     }
+
+    [Fact]
+    public void ExpressionTemplate_BuiltInProperties_ShouldNotBeHighlighted()
+    {
+        // Arrange - ExpressionTemplate with built-in properties that don't have arguments
+        var text = @".WriteTo.Console(new ExpressionTemplate(
+        ""[{@t:HH:mm:ss} {@l:u3}] {#if SourceContext is not null}[{Substring(SourceContext, LastIndexOf(SourceContext, '.') + 1)}]{#end} {@m}\n{@x}""))";
+        var buffer = MockTextBuffer.Create(text);
+        var view = new MockTextView(buffer);
+        var highlighter = new PropertyArgumentHighlighter(view, buffer);
+
+        // Act - position cursor on the opening brace of {@t:HH:mm:ss}
+        var cursorPosition = text.IndexOf("{@t:");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, cursorPosition));
+
+        var tags = highlighter.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        // Assert - No tags should be created since {@t:HH:mm:ss} is not a property with an argument
+        Assert.Empty(tags);
+
+        // Also test cursor on {@l:u3}
+        cursorPosition = text.IndexOf("{@l:");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, cursorPosition));
+
+        tags = highlighter.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        Assert.Empty(tags);
+
+        // Also test cursor on {@m}
+        cursorPosition = text.IndexOf("{@m}");
+        view.Caret.MoveTo(new SnapshotPoint(buffer.CurrentSnapshot, cursorPosition));
+
+        tags = highlighter.GetTags(new NormalizedSnapshotSpanCollection(
+            new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length))).ToList();
+
+        Assert.Empty(tags);
+    }
 }
