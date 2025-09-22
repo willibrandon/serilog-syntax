@@ -81,6 +81,11 @@ internal static class SerilogClassificationTypes
     public const string ExpressionBuiltin = "serilog.expression.builtin";
 
     /// <summary>
+    /// Classification type name for property-argument highlights.
+    /// </summary>
+    public const string PropertyArgumentHighlight = "serilog.property.argument.highlight";
+
+    /// <summary>
     /// Classification type definition for property names.
     /// </summary>
     [Export(typeof(ClassificationTypeDefinition))]
@@ -178,4 +183,11 @@ internal static class SerilogClassificationTypes
     [Export(typeof(ClassificationTypeDefinition))]
     [Name(ExpressionBuiltin)]
     internal static ClassificationTypeDefinition ExpressionBuiltinType = null;
+
+    /// <summary>
+    /// Classification type definition for property-argument highlights.
+    /// </summary>
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(PropertyArgumentHighlight)]
+    internal static ClassificationTypeDefinition PropertyArgumentHighlightType = null;
 }

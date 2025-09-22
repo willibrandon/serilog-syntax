@@ -72,6 +72,8 @@
     <Compile Include="Parsing\TemplateProperty.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SerilogSyntaxPackage.cs" />
+    <Compile Include="Tagging\PropertyArgumentHighlighter.cs" />
+    <Compile Include="Tagging\PropertyArgumentHighlighterProvider.cs" />
     <Compile Include="Tagging\SerilogBraceMatcher.cs" />
     <Compile Include="Tagging\SerilogBraceHighlightState.cs" />
     <Compile Include="Tagging\SerilogBraceEscCommandHandler.cs" />
