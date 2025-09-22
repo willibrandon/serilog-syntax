@@ -157,6 +157,7 @@ This extension provides syntax highlighting and navigation for Serilog message t
 - **Syntax highlighting** for Serilog.Expressions filter syntax and expression templates
 - **Navigation** support (Go to Definition) between template properties and arguments
 - **Brace matching** for template property delimiters and expression templates
+- **Property-argument highlighting** shows connections between properties and arguments on cursor position
 
 ### Technical Stack
 - **Roslyn Classification API** - For syntax highlighting via `IClassifier`
@@ -194,14 +195,15 @@ The extension includes these components:
 3. **Classification/SerilogClassifierProvider.cs** - MEF export for classifier
 4. **Navigation/SerilogNavigationProvider.cs** - Navigation from properties to arguments via light bulb
 5. **Tagging/SerilogBraceMatcher.cs** - Implements `ITagger<TextMarkerTag>` for brace matching
-6. **Utilities/SerilogCallDetector.cs** - Centralized Serilog call detection logic
-7. **Utilities/LruCache.cs** - Thread-safe LRU cache for parsed templates
+6. **Tagging/PropertyArgumentHighlighter.cs** - Implements `ITagger<TextMarkerTag>` for property-argument highlighting
+7. **Utilities/SerilogCallDetector.cs** - Centralized Serilog call detection logic
+8. **Utilities/LruCache.cs** - Thread-safe LRU cache for parsed templates
 
 #### Serilog.Expressions Support
-8. **Expressions/ExpressionTokenizer.cs** - Tokenizes Serilog.Expressions syntax
-9. **Expressions/ExpressionParser.cs** - Parses expressions and templates into classified regions
-10. **Expressions/ExpressionDetector.cs** - Detects expression contexts (filter, template, etc.)
-11. **Classification/SyntaxTreeAnalyzer.cs** - Roslyn-based analysis for expression contexts
+9. **Expressions/ExpressionTokenizer.cs** - Tokenizes Serilog.Expressions syntax
+10. **Expressions/ExpressionParser.cs** - Parses expressions and templates into classified regions
+11. **Expressions/ExpressionDetector.cs** - Detects expression contexts (filter, template, etc.)
+12. **Classification/SyntaxTreeAnalyzer.cs** - Roslyn-based analysis for expression contexts
 
 ### Performance Considerations
 - LRU cache for parsed templates (10x improvement for repeated templates)

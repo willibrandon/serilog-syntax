@@ -91,6 +91,7 @@ Open `Program.cs` in Visual Studio with the Serilog Syntax extension installed t
 ### Interactive Features
 - **Brace matching** when cursor is on `{` or `}`
 - **Light bulb navigation** from properties to arguments
+- **Property-argument highlighting** when cursor is on either a property or argument
 - **Immediate highlighting** as you type (before closing quotes)
 - **Multi-line support** for verbatim and raw strings
 

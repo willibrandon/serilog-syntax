@@ -62,7 +62,6 @@ public class PropertyArgumentHighlighterTests
 
         // Test each property
         var properties = new[] { "{UserId}", "{UserName}", "{OrderCount}", "{TotalAmount:C}" };
-        var arguments = new[] { "userId", "userName", "orderCount", "totalAmount" };
 
         for (int i = 0; i < properties.Length; i++)
         {
