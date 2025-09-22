@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-09-21
+
+### Added
+- Property-argument highlighting for Serilog templates (#15, #17)
+  - Highlights the connection between template properties and their corresponding arguments
+  - When cursor is on a template property, both the property and its argument are highlighted
+  - When cursor is on an argument, both the argument and its template property are highlighted
+  - Press ESC to dismiss highlights
+  - Supports all string formats: regular, verbatim (@"..."), and raw strings ("""...""")
+  - Handles complex scenarios: multi-line templates, collection expressions, anonymous objects
+  - Correctly handles LogError with exception parameters
+  - Supports positional parameters ({0}, {1}) including duplicates
+  - Excludes ExpressionTemplate contexts where properties have no corresponding arguments
+
+### Fixed
+- ExpressionTemplate properties (like {@t}, {@l}, {@m}) no longer incorrectly trigger property-argument highlighting
+
 ## [0.6.2] - 2025-09-09
 
 ### Fixed
